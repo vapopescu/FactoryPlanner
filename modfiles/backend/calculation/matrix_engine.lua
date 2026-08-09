@@ -88,70 +88,6 @@ function matrix_engine.print_items_set(items)
     llog(item_name_set)
 end
 
----@generic T : table
----@param a T
----@param b T
----@return T
-function matrix_engine.set_diff(a, b)
-    local result = {}
-    for k, _ in pairs(a) do
-        if not b[k] then
-            result[k] = true
-        end
-    end
-    return result
-end
-
----@generic T : table
----@param ... T
----@return T
-function matrix_engine.union_sets(...)
-    local arg = {...}
-    local result = {}
-    for _, set in pairs(arg) do
-        for val, _ in pairs(set) do
-            result[val] = true
-        end
-    end
-    return result
-end
-
----@generic T : table
----@param ... T
----@return T
-function matrix_engine.intersect_sets(...)
-    local arg = {...}
-    local counts = {}
-    local num_sets = #arg
-    for _, set in pairs(arg) do
-        for val, _ in pairs(set) do
-            if not counts[val] then
-                counts[val] = 1
-            else
-                counts[val] = counts[val] + 1
-            end
-        end
-    end
-    local result = {}
-    for k, count in pairs(counts) do
-        if count==num_sets then
-            result[k] = true
-        end
-    end
-    return result
-end
-
----@return integer
-function matrix_engine.num_elements(...)
-    local arg = {...}
-    local count = 0
-    for _, set in pairs(arg) do
-        for _, _ in pairs(set) do
-            count = count + 1
-        end
-    end
-    return count
-end
 
 ---@class MatrixMetadata
 ---@field recipes integer[]
@@ -174,9 +110,9 @@ function matrix_engine.get_matrix_solver_metadata(factory_data)
     local raw_inputs = factory_metadata.raw_inputs
     local byproducts = factory_metadata.byproducts
     local unproduced_outputs = factory_metadata.unproduced_outputs
-    local produced_outputs = matrix_engine.set_diff(factory_metadata.desired_outputs, unproduced_outputs)  ---@type table<SolverItemKey, true>
-    local free_variables = matrix_engine.union_sets(raw_inputs, byproducts, unproduced_outputs)
-    local intermediate_items = matrix_engine.set_diff(all_items, free_variables)
+    local produced_outputs = solver.util.set.difference(factory_metadata.desired_outputs, unproduced_outputs)
+    local free_variables = solver.util.set.union(raw_inputs, byproducts, unproduced_outputs)
+    local intermediate_items = solver.util.set.difference(all_items, free_variables)
 
     -- by default when a factory is updated, add any new variables to eliminated and let the user select free.
     local free_items_list = factory_data.matrix_free_items
@@ -185,11 +121,11 @@ function matrix_engine.get_matrix_solver_metadata(factory_data)
         free_items[item_key] = true
     end
     -- make sure that any items that no longer exist are removed
-    free_items = matrix_engine.intersect_sets(free_items, intermediate_items)
-    eliminated_items = matrix_engine.set_diff(intermediate_items, free_items)
+    free_items = solver.util.set.intersection(free_items, intermediate_items)  ---@type table<SolverItemKey, true>
+    eliminated_items = solver.util.set.difference(intermediate_items, free_items)
 
-    local num_rows = matrix_engine.num_elements(raw_inputs, byproducts, eliminated_items, free_items)
-    local num_cols = matrix_engine.num_elements(recipes, raw_inputs, byproducts, free_items)
+    local num_rows = solver.util.set.count(raw_inputs, byproducts, eliminated_items, free_items)
+    local num_cols = solver.util.set.count(recipes, raw_inputs, byproducts, free_items)
     local result = {
         recipes = recipes,
         ingredients = matrix_engine.get_item_protos(matrix_engine.set_to_ordered_list(raw_inputs)),
@@ -324,14 +260,14 @@ function matrix_engine.get_matrix_data(factory_data)
                 line_names[line_key] = true
             else
                 local subfloor_line_names = get_line_names(line_key, line.subfloor.lines)
-                line_names = matrix_engine.union_sets(line_names, subfloor_line_names)
+                line_names = solver.util.set.union(line_names, subfloor_line_names)
             end
         end
         return line_names
     end
     local line_names = get_line_names("line", factory_data.top_floor.lines)
 
-    local raw_free_variables = matrix_engine.union_sets(factory_metadata.raw_inputs, factory_metadata.byproducts)  ---@as table<SolverItemKey, true>
+    local raw_free_variables = solver.util.set.union(factory_metadata.raw_inputs, factory_metadata.byproducts)  ---@as table<SolverItemKey, true>
     local free_variables = {}  ---@type table<string, true>
     for k, _ in pairs(raw_free_variables) do
         free_variables["item_"..k] = true
@@ -340,7 +276,7 @@ function matrix_engine.get_matrix_data(factory_data)
         local item_key = structures.pack_item(v)
         free_variables["item_"..item_key] = true
     end
-    local col_set = matrix_engine.union_sets(line_names, free_variables)
+    local col_set = solver.util.set.union(line_names, free_variables)
     local columns = matrix_engine.get_mapping_struct(col_set)
     local matrix, free_variable_scale_factors = matrix_engine.get_matrix(factory_data, rows, columns)
 
@@ -560,10 +496,10 @@ function matrix_engine.get_factory_metadata(factory_data)
     local lines_metadata = matrix_engine.get_lines_metadata(factory_data.top_floor.lines)
     local line_inputs = lines_metadata.line_inputs
     local line_outputs = lines_metadata.line_outputs
-    local unproduced_outputs = matrix_engine.set_diff(desired_outputs, line_outputs)
-    local all_items = matrix_engine.union_sets(line_inputs, line_outputs)
-    local raw_inputs = matrix_engine.set_diff(line_inputs, line_outputs)
-    local byproducts = matrix_engine.set_diff(matrix_engine.set_diff(line_outputs, line_inputs), desired_outputs)
+    local unproduced_outputs = solver.util.set.difference(desired_outputs, line_outputs)
+    local all_items = solver.util.set.union(line_inputs, line_outputs)
+    local raw_inputs = solver.util.set.difference(line_inputs, line_outputs)
+    local byproducts = solver.util.set.difference(solver.util.set.difference(line_outputs, line_inputs), desired_outputs)
     return {
         recipes = lines_metadata.line_recipes,
         desired_outputs = desired_outputs,
@@ -591,8 +527,8 @@ function matrix_engine.get_lines_metadata(lines)
             for _, subfloor_line_recipe in pairs(floor_metadata.line_recipes) do
                 table.insert(line_recipes, subfloor_line_recipe)
             end
-            line_inputs = matrix_engine.union_sets(line_inputs, floor_metadata.line_inputs)
-            line_outputs = matrix_engine.union_sets(line_outputs, floor_metadata.line_outputs)
+            line_inputs = solver.util.set.union(line_inputs, floor_metadata.line_inputs)
+            line_outputs = solver.util.set.union(line_outputs, floor_metadata.line_outputs)
         else  ---@cast line LineData
             local line_aggregate = matrix_engine.get_line_aggregate(line, 1, 1)
             matrix_engine.consolidate(line_aggregate)

@@ -124,6 +124,16 @@ function _util.set.intersection(t, ...)
     return result
 end
 
+--- Returns the total item count of one or more sets
+---@return integer
+function _util.set.count(...)
+    local count = 0
+    for _, set in pairs({...}) do
+        for _, _ in pairs(set) do count = count + 1 end
+    end
+    return count
+end
+
 --- Subtracts the sets on the right from the first input set in a new result set (`L ∖ R`).
 ---@generic T
 ---@param t table<T, true>
