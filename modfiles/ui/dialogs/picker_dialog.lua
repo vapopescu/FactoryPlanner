@@ -12,6 +12,7 @@ local TLProduct = require("backend.data.TLProduct")
 ---@field amount_defined_by ProductDefinedBy
 ---@field item_proto FPItemPrototype?
 ---@field belt_proto FPBeltPrototype?
+---@field quality_proto FPQualityPrototype?
 ---@field belt_stack integer
 ---@field selected_group_id integer?
 
@@ -89,6 +90,13 @@ local function add_item_picker(parent_flow, player)
 
     local frame_filters = parent_flow.add{type="frame", style="filter_frame"}
     modal_elements["filter_frame"] = frame_filters
+
+    if QUALITY_ENABLED then
+        local quality_frame = parent_flow.add{type = "frame", style = "subfooter_frame"}
+        quality_frame.style.horizontally_stretchable = true
+
+        quality_selector.add_flow(quality_frame, modal_data)
+    end
 
     local group_id_cache, group_flow_cache, subgroup_table_cache = {}, {}, {}
     modal_elements.groups = {}
@@ -413,6 +421,7 @@ local function handle_item_pick(player, tags, _)
     set_item_proto(modal_data, item_proto)  -- no need for sync in this case
 
     set_appropriate_focus(modal_data)
+    quality_selector.refresh_element(modal_data)
     update_dialog_submit_button(modal_data.modal_elements)
 end
 
