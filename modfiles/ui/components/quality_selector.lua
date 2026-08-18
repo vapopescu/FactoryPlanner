@@ -37,7 +37,8 @@ function quality_selector.refresh_element(modal_data)
     local buttons = modal_data.modal_elements.quality_buttons  ---@type table<string, LuaGuiElement>
     local enabled = true
 
-    if modal_data.item_proto and modal_data.item_proto.type ~= "item" then
+    if modal_data.item_proto and modal_data.item_proto.type ~= "item" 
+            or modal_data.recipe_proto and not modal_data.recipe_proto.can_set_quality then
         modal_data.quality_proto = nil
         enabled = false
     elseif not modal_data.quality_proto then
