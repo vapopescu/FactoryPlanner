@@ -8,6 +8,7 @@ local Object = require("backend.data.Object")
 ---@field temperature_data TemperatureData
 ---@field amount number
 ---@field satisfied_amount number
+---@field quality_proto (FPQualityPrototype | FPPackedPrototype)?
 local Fuel = Object.methods()
 Fuel.__index = Fuel
 script.register_metatable("Fuel", Fuel)
@@ -168,6 +169,7 @@ end
 ---@field proto FPPackedPrototype
 ---@field temperature float?
 ---@field amount float?
+---@field quality_proto FPPackedPrototype?
 
 ---@param full boolean
 ---@return PackedFuel packed_self
@@ -177,7 +179,9 @@ function Fuel:pack(full)
         proto = prototyper.util.simplify_prototype(self.proto, "combined_category"),
         temperature = self.temperature,
 
-        amount = (full) and self.amount or nil
+        amount = (full) and self.amount or nil,
+
+        quality_proto = self.quality_proto and prototyper.util.simplify_prototype(self.quality_proto, nil) or nil
     }
 end
 
@@ -190,6 +194,7 @@ local function unpack(packed_self, parent)
 
     unpacked_self.temperature = packed_self.temperature  -- will be migrated through validation
     unpacked_self.amount = packed_self.amount or 0  -- only used for paste
+    unpacked_self.quality_proto = packed_self.quality_proto
 
     return unpacked_self
 end

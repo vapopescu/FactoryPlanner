@@ -95,9 +95,10 @@ end
 ---@return boolean equals
 function defaults.equals_default(player, data_type, object, category)
     local default = defaults.get(player, data_type, category)
+    local default_quality = default.quality or defaults.get_fallback("qualities").proto  ---@as FPQualityPrototype
     local same_proto = (default.proto.name == object.proto.name)
     local same_quality, same_modules = true, true
-    if object.quality_proto then same_quality = (default.quality--[[@cast -nil]].id == object.quality_proto.id) end
+    if object.quality_proto then same_quality = (default_quality.id == object.quality_proto.id) end
     if object.module_set then same_modules = object.module_set:equals_default(default.modules--[[@cast -nil]]) end
     return same_proto and same_quality and same_modules
 end

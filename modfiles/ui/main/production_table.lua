@@ -489,6 +489,7 @@ local function add_fuel(line, parent_flow, metadata)
     local number_line = (number_tooltip) and {"", "\n", number_tooltip} or ""
     local tooltip = {"", name_line, temperature_line, performance_line, number_line, satisfaction_line,
         "\n", MODIFIER_ACTIONS["act_on_line_fuel"].tooltip}
+    local quality = fuel.quality_proto and fuel.quality_proto.name
 
     ---@class ActOnLineFuelTags
     ---@field fuel_id ObjectID
@@ -497,7 +498,7 @@ local function add_fuel(line, parent_flow, metadata)
         context="production_table"}
     -- Insert this before special ingredients, ie. index 1
     local button = parent_flow.add{type="sprite-button", tags=tags, sprite=fuel.proto.sprite, style=style,
-        number=amount, mouse_button_filter={"left-and-right"}, raise_hover_events=true, index=1}
+        quality=quality, number=amount, mouse_button_filter={"left-and-right"}, raise_hover_events=true, index=1}
     metadata.tooltips[button.index] = tooltip
 end
 
