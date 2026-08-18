@@ -92,10 +92,10 @@ local function add_item_picker(parent_flow, player)
     modal_elements["filter_frame"] = frame_filters
 
     if QUALITY_ENABLED then
-        local quality_frame = parent_flow.add{type = "frame", style = "subfooter_frame"}
-        quality_frame.style.horizontally_stretchable = true
+        local subfooter = parent_flow.add{type = "frame", style = "subfooter_frame"}
+        subfooter.style.horizontally_stretchable = true
 
-        quality_selector.add_flow(quality_frame, modal_data)
+        quality_selector.add_flow(subfooter, modal_data)
     end
 
     local group_id_cache, group_flow_cache, subgroup_table_cache = {}, {}, {}

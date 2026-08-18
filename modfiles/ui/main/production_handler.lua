@@ -287,7 +287,7 @@ local function handle_item_click(player, tags, action)
 
         lib.gui.open_dialog(player, {dialog="recipe", modal_data={recipe_id=recipe_id,
             add_after_line_id=add_after_line_id, production_type=production_type,
-            category_id=proto.category_id, product_id=proto.id}})
+            category_id=proto.category_id, product_id=proto.id, quality_proto = item.quality_proto}})
 
     elseif action == "edit_temperature" then
         if item.proto.type ~= "fluid" then
@@ -348,7 +348,7 @@ local function handle_fuel_click(player, tags, action)
 
         lib.gui.open_dialog(player, {dialog="recipe", modal_data={fuel_id=fuel.id,
             add_after_line_id=add_after_line_id, production_type="produce",
-            category_id=proto.category_id, product_id=proto.id}})
+            category_id=proto.category_id, product_id=proto.id, quality_proto = fuel.quality_proto}})
 
     elseif action == "edit_temperature" then
         if fuel.proto.type ~= "fluid" then

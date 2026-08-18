@@ -127,6 +127,7 @@ function builders.recipe(line, parent_flow, metadata, indent)
     local effects_section = (line.class == "Line") and format_effects_tooltip(relevant_line.effects_tooltip) or ""
     local tooltip = {"", first_line, status_line, effects_section, "\n", MODIFIER_ACTIONS[action].tooltip}
     local style = "fflib_slot_button_" .. color .. variant
+    local quality = relevant_line.recipe.quality_proto and relevant_line.recipe.quality_proto.name
 
     ---@class ActOnLineObjectRecipe
     ---@field line_id ObjectID
@@ -134,7 +135,7 @@ function builders.recipe(line, parent_flow, metadata, indent)
     local tags = {mod="fp", on_gui_click=action, line_id=line.id, on_gui_hover="set_tooltip",
         context="production_table"}
     local button = parent_flow.add{type="sprite-button", tags = tags, sprite=recipe_proto.sprite, style=style,
-        mouse_button_filter={"left-and-right"}, raise_hover_events=true}
+        quality = quality, mouse_button_filter={"left-and-right"}, raise_hover_events=true}
     metadata.tooltips[button.index] = tooltip
 end
 

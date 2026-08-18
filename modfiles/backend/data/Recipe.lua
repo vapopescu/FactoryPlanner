@@ -21,6 +21,7 @@ local SimpleItem = require("backend.data.SimpleItem")
 ---@field products FormattedProduct[]
 ---@field catalysts RecipeCatalysts
 ---@field effects IntegerModuleEffects?
+---@field quality_proto (FPQualityPrototype | FPPackedPrototype)?
 local Recipe = Object.methods()
 Recipe.__index = Recipe
 script.register_metatable("Recipe", Recipe)
@@ -252,6 +253,7 @@ end
 ---@field production_type RecipeProductionType
 ---@field priority_item FPPackedPrototype?
 ---@field temperatures table<string, float>
+---@field quality_proto FPPackedPrototype?
 
 ---@param full boolean
 ---@return PackedRecipe packed_self
@@ -262,7 +264,9 @@ function Recipe:pack(full)
         production_type = self.production_type,
         priority_item = (self.priority_item) and
             prototyper.util.simplify_prototype(self.priority_item, "type") or nil,
-        temperatures = self.temperatures
+        temperatures = self.temperatures,
+        quality_proto = self.quality_proto and
+            prototyper.util.simplify_prototype(self.quality_proto, nil) or nil,
     }
 end
 
@@ -276,6 +280,7 @@ local function unpack(packed_self, parent)
 
     -- Will be automatically unpacked by the validation process
     unpacked_self.temperatures = packed_self.temperatures
+    unpacked_self.quality_proto = packed_self.quality_proto
 
     return unpacked_self
 end

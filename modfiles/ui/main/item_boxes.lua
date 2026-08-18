@@ -204,7 +204,7 @@ local function handle_item_button_click(player, tags, action)
         else
             local production_type = (tags.item_category == "byproduct") and "consume" or "produce"
             lib.gui.open_dialog(player, {dialog="recipe", modal_data={production_type=production_type,
-                category_id=item.proto.category_id, product_id=item.proto.id}})
+                category_id=item.proto.category_id, product_id=item.proto.id, quality_proto = item.quality_proto}})
         end
 
     elseif action == "edit" then

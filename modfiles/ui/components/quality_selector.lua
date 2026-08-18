@@ -4,8 +4,10 @@ quality_selector = {}
 ---@class SelectQualityTags
 ---@field proto_name string
 
+---@alias QualitySelectorModalData PickerDialogModalData|RecipeDialogModalData
+
 ---@param parent LuaGuiElement
----@param modal_data PickerDialogModalData
+---@param modal_data QualitySelectorModalData
 function quality_selector.add_flow(parent, modal_data)
     if not QUALITY_ENABLED then return end
 
@@ -28,11 +30,11 @@ function quality_selector.add_flow(parent, modal_data)
     quality_selector.refresh_element(modal_data)
 end
 
----@param modal_data PickerDialogModalData
+---@param modal_data QualitySelectorModalData
 function quality_selector.refresh_element(modal_data)
     if not QUALITY_ENABLED then return end
 
-    local buttons = modal_data.modal_elements["quality_buttons"]  ---@type table<string, LuaGuiElement>
+    local buttons = modal_data.modal_elements.quality_buttons  ---@type table<string, LuaGuiElement>
     local enabled = true
 
     if modal_data.item_proto and modal_data.item_proto.type ~= "item" then
@@ -47,11 +49,12 @@ function quality_selector.refresh_element(modal_data)
         button.toggled = false
     end
 
+    local item_button = modal_data.modal_elements.item_choice_button  ---@type LuaGuiElement?
     if modal_data.quality_proto then
         buttons[modal_data.quality_proto.name].toggled = true
-        modal_data.modal_elements["item_choice_button"]--[[@as LuaGuiElement]].quality = modal_data.quality_proto.name
+        if item_button then item_button.quality = modal_data.quality_proto.name end
     else
-        modal_data.modal_elements["item_choice_button"]--[[@as LuaGuiElement]].quality = nil
+        if item_button then item_button.quality = nil end
     end
 end
 
@@ -59,7 +62,7 @@ end
 ---@param tags Tags
 local function handle_select_quality(player, tags, _)
     ---@cast tags SelectQualityTags
-    local modal_data = lib.globals.modal_data(player)  ---@as PickerDialogModalData
+    local modal_data = lib.globals.modal_data(player)  ---@as QualitySelectorModalData
     modal_data.quality_proto = prototyper.util.find("qualities", tags.proto_name)
     quality_selector.refresh_element(modal_data)
 end
