@@ -47,7 +47,12 @@ function quality_selector.refresh_element(modal_data)
         button.toggled = false
     end
 
-    if modal_data.quality_proto then buttons[modal_data.quality_proto.name].toggled = true end
+    if modal_data.quality_proto then
+        buttons[modal_data.quality_proto.name].toggled = true
+        modal_data.modal_elements["item_choice_button"]--[[@as LuaGuiElement]].quality = modal_data.quality_proto.name
+    else
+        modal_data.modal_elements["item_choice_button"]--[[@as LuaGuiElement]].quality = nil
+    end
 end
 
 ---@param player LuaPlayer

@@ -511,6 +511,7 @@ local function close_picker_dialog(player, action)
             top_level_item.required_amount = relevant_amount
             top_level_item.belt_proto = modal_data.belt_proto
             top_level_item.belt_stack = (modal_data.belt_proto) and modal_data.belt_stack or nil
+            top_level_item.quality_proto = modal_data.quality_proto
 
             if modal_data.create_factory then  -- if this flag is set, create a factory to put the item into
                 factory = factory_list.add_factory(player, nil, item_proto)

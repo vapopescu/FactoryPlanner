@@ -41,7 +41,7 @@ end
 
 ---@class HandleItemBoxClickTags
 ---@field item_category ItemCategory
----@field item_id ObjectID
+---@field item_id ObjectID?
 ---@field item_index integer?
 ---@field context "item_boxes"
 
@@ -89,11 +89,12 @@ local function refresh_item_box(player, factory, show_floor_items, item_category
 
             local tooltip = {"", {"fp.tt_title", product.proto.localised_name}, "\n", number_tooltip,
                 satisfaction_line, "\n", MODIFIER_ACTIONS[action].tooltip}
+            local quality = product.quality_proto and product.quality_proto.name or nil
 
             local tags = {mod="fp", on_gui_click=action, item_category=item_category, item_id=product.id,
                 on_gui_hover="set_tooltip", context="item_boxes"}  ---@type HandleItemBoxClickTags
             local button = table_items.add{type="sprite-button", tags=tags--[[@as Tags]], number=amount, style=style,
-                sprite=product.proto.sprite, mouse_button_filter={"left-and-right"}, raise_hover_events=true}
+                sprite=product.proto.sprite, quality = quality, mouse_button_filter={"left-and-right"}, raise_hover_events=true}
             tooltips.item_boxes[button.index] = tooltip
             table_item_count = table_item_count + 1
 
@@ -111,7 +112,7 @@ local function refresh_item_box(player, factory, show_floor_items, item_category
         button.style.margin = 4
         table_item_count = table_item_count + 1
     else
-        for index, item in pairs(floor[item_category .. "s"]) do
+        for index, item in pairs(floor[item_category .. "s"]--[[@as table<integer,SimpleItem>]]) do
             local action = "act_on_floor_" .. item_category
             local amount, number_tooltip = nil, nil
 
@@ -127,11 +128,12 @@ local function refresh_item_box(player, factory, show_floor_items, item_category
             local style = (item_category == "byproduct") and "fflib_slot_button_red" or "fflib_slot_button_default"
             local tooltip = {"", {"fp.tt_title", item.proto.localised_name}, "\n", number_tooltip,
                 "\n", MODIFIER_ACTIONS[action].tooltip}
+            local quality = item.quality_proto and item.quality_proto.name or nil
 
-            local tags = {mod="fp", on_gui_click=action, item_category=item_category, item_id=item.id, item_index=index,
+            local tags = {mod="fp", on_gui_click=action, item_category=item_category, item_id=nil, item_index=index,
                 on_gui_hover="set_tooltip", context="item_boxes"}  ---@type HandleItemBoxClickTags
             local button = table_items.add{type="sprite-button", tags=tags--[[@as Tags]], number=amount, style=style,
-                sprite=item.proto.sprite, mouse_button_filter={"left-and-right"}, raise_hover_events=true}
+                sprite=item.proto.sprite, quality = quality, mouse_button_filter={"left-and-right"}, raise_hover_events=true}
             tooltips.item_boxes[button.index] = tooltip
             table_item_count = table_item_count + 1
 

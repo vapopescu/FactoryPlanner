@@ -5,6 +5,7 @@
 ---@field amount number
 ---@field satisfied_amount number?
 ---@field parent LineObject?
+---@field quality_proto FPQualityPrototype?
 local SimpleItem = {}
 SimpleItem.__index = SimpleItem
 script.register_metatable("SimpleItem", SimpleItem)

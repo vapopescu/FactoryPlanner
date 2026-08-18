@@ -11,6 +11,7 @@ local Object = require("backend.data.Object")
 ---@field required_amount number
 ---@field belt_proto (FPBeltPrototype | FPPackedPrototype)?
 ---@field belt_stack integer?
+---@field quality_proto (FPQualityPrototype | FPPackedPrototype)?
 ---@field amount number
 local TLProduct = Object.methods()
 TLProduct.__index = TLProduct
@@ -117,6 +118,7 @@ end
 ---@field required_amount number
 ---@field belt_proto FPPackedPrototype?
 ---@field belt_stack integer?
+---@field quality_proto FPPackedPrototype?
 
 ---@param full boolean
 ---@return PackedProduct packed_self
@@ -128,6 +130,7 @@ function TLProduct:pack(full)
         required_amount = self.required_amount,
         belt_proto = (self.belt_proto) and prototyper.util.simplify_prototype(self.belt_proto, nil) or nil,
         belt_stack = self.belt_stack,
+        quality_proto = (self.quality_proto) and prototyper.util.simplify_prototype(self.quality_proto, nil) or nil,
 
         amount = (full) and self.amount or nil
     }
@@ -143,6 +146,7 @@ local function unpack(packed_self)
     unpacked_self.required_amount = packed_self.required_amount
     unpacked_self.belt_proto = packed_self.belt_proto
     unpacked_self.belt_stack = packed_self.belt_stack
+    unpacked_self.quality_proto = packed_self.quality_proto
 
     return unpacked_self
 end
