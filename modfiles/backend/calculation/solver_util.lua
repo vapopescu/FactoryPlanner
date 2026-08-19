@@ -102,15 +102,16 @@ function _util.determine_item_quality(recipe_quality, item)
     local base_quality = recipe_quality or
             defaults.get_fallback("qualities").proto  ---@as FPQualityPrototype
 
-    local level = base_quality.level + (item.quality_change or 0)  ---@as integer
+    -- Quality IDs are sorted by level, so a shift in quality is a shift in ID
+    local quality_id = base_quality.id + (item.quality_change or 0)  ---@as integer
 
     local min_proto = item.quality_min and prototyper.util.find("qualities", item.quality_min--[[@as string]])  ---@as FPQualityPrototype?
-    level = math.max(level, min_proto and min_proto.level or QUALITY_DATA.min_level)
+    quality_id = math.max(quality_id, min_proto and min_proto.id or 1)
 
     local max_proto = item.quality_max and prototyper.util.find("qualities", item.quality_max--[[@as string]])  ---@as FPQualityPrototype?
-    level = math.min(level, max_proto and max_proto.level or QUALITY_DATA.max_level)
+    quality_id = math.min(quality_id, max_proto and max_proto.id or #storage.prototypes.qualities)
 
-    return QUALITY_DATA.level_map[level]
+    return prototyper.util.find("qualities", quality_id)  ---@as FPQualityPrototype
 end
 
 --- Joins two or more sets together in a new result set (`L ∪ R`).

@@ -406,7 +406,7 @@ local function build_dialog_structure(modal_data)
         if relevant_group ~= nil then create_recipe_group_box(modal_data, relevant_group) end
     end
 
-    if QUALITY_ENABLED and modal_data.quality_proto and modal_data.quality_proto.level ~= QUALITY_DATA.default_level then
+    if QUALITY_ENABLED then
         local subfooter = main_frame.add{type = "frame", style = "subfooter_frame"}
         local footer_flow = subfooter.add{type = "flow", direction = "horizontal"}
         local input_flow = footer_flow.add{type = "flow", direction = "horizontal", style = "player_input_horizontal_flow"}
@@ -516,10 +516,7 @@ local function recipe_early_abort_check(player, modal_data)
         return true  -- signal that the dialog does not need to actually be opened
 
     else  ---@cast relevant_recipes -nil
-        -- Assume we only need quality recipes when not using the lowest level
-        local use_quality = QUALITY_ENABLED and modal_data.quality_proto and modal_data.quality_proto.level ~= QUALITY_DATA.default_level
-
-        if #relevant_recipes == 1 and not use_quality then  -- if one relevant recipe is found, try it straight away
+        if #relevant_recipes == 1 and not QUALITY_ENABLED then  -- if one relevant recipe is found, try it straight away
             attempt_adding_line(player, relevant_recipes[1]--[[@cast -nil]].proto.id, modal_data)
             return true  -- idem above
 

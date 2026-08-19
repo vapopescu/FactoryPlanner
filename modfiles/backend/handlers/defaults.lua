@@ -131,9 +131,14 @@ function defaults.get_fallback(data_type)
 
     local fallback = nil
     if prototyper.data_types[data_type] == false then
-        ---@cast prototypes IndexedPrototypes<FPPrototype>
-        fallback = (#prototypes == 0) and {} or
-            {proto=prototypes[1], quality=default_quality, modules=nil, beacon_amount=nil}
+        if data_type == "qualities" then
+            -- Normal quality will always exist, but it's not guaranteed it has the lowest index
+            fallback = { proto = PROTOTYPE_MAPS.qualities["normal"] }
+        else
+            ---@cast prototypes IndexedPrototypes<FPPrototype>
+            fallback = (#prototypes == 0) and {} or
+                {proto=prototypes[1], quality=default_quality, modules=nil, beacon_amount=nil}
+        end
     else
         ---@cast prototypes IndexedPrototypesWithCategory<FPPrototypeWithCategory>
         fallback = {}
