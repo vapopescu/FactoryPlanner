@@ -89,7 +89,7 @@ end
 local function set_defaults(player, tags, _)
     local modal_data = lib.globals.modal_data(player)  ---@as MachineDialogModalData
     local machine = modal_data.object
-    local fuel = machine.fuel  ---@cast fuel -nil
+    local fuel = machine.fuel
 
     local machine_data = {
         prototype = machine.proto.name,
@@ -97,7 +97,7 @@ local function set_defaults(player, tags, _)
         modules = machine.module_set:compile_default()
     }
 
-    local fuel_data = {
+    local fuel_data = fuel and {
         prototype = fuel.proto.name,
         quality = fuel.quality_proto and fuel.quality_proto.name
     }
@@ -108,10 +108,10 @@ local function set_defaults(player, tags, _)
         defaults.set(player, "machines", machine_data, machine.proto.combined_category)
 
     elseif tags.action == "fuel_all" then
-        defaults.set_all(player, "fuels", fuel_data)
+        defaults.set_all(player, "fuels", fuel_data--[[@cast -nil]])
     elseif tags.action == "fuel" then
         local category = machine.proto.burner--[[@cast -nil]].combined_category
-        defaults.set(player, "fuels", fuel_data, category)
+        defaults.set(player, "fuels", fuel_data--[[@cast -nil]], category)
     end
 
     refresh_defaults_frame(player)

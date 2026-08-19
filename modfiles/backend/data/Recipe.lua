@@ -267,8 +267,7 @@ function Recipe:pack(full)
         priority_item = (self.priority_item) and
             prototyper.util.simplify_prototype(self.priority_item, "type") or nil,
         temperatures = self.temperatures,
-        quality_proto = self.quality_proto and
-            prototyper.util.simplify_prototype(self.quality_proto, nil) or nil,
+        quality_proto = self.quality_proto and prototyper.util.simplify_prototype(self.quality_proto)
     }
 end
 
@@ -333,6 +332,7 @@ function Recipe:validate(player)
         self:build_items()
     end
 
+    self.quality_proto = self.quality_proto and prototyper.util.validate_prototype_object(self.quality_proto)
     return self.valid
 end
 

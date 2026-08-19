@@ -130,7 +130,7 @@ function TLProduct:pack(full)
         required_amount = self.required_amount,
         belt_proto = (self.belt_proto) and prototyper.util.simplify_prototype(self.belt_proto, nil) or nil,
         belt_stack = self.belt_stack,
-        quality_proto = (self.quality_proto) and prototyper.util.simplify_prototype(self.quality_proto, nil) or nil,
+        quality_proto = (self.quality_proto) and prototyper.util.simplify_prototype(self.quality_proto) or nil,
 
         amount = (full) and self.amount or nil
     }
@@ -170,6 +170,7 @@ function TLProduct:validate(player)
         end
     end
 
+    self.quality_proto = self.quality_proto and prototyper.util.validate_prototype_object(self.quality_proto)
     return self.valid
 end
 
