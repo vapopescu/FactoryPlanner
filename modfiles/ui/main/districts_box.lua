@@ -55,7 +55,7 @@ local function handle_item_button_click(player, tags, action)
         lib.gui.run_refresh(player, "all")
 
     elseif action == "copy" then  -- copy as SimpleItems makes most sense
-        local copyable_item = SimpleItem.init(nil, item.proto, item.abs_diff)
+        local copyable_item = SimpleItem.init(nil, item.proto, item.quality_proto, item.abs_diff)
         lib.clipboard.copy(player, copyable_item)
 
     elseif action == "put_into_cursor" then
@@ -142,9 +142,10 @@ local function build_items_flow(player, parent, district)
         local diff_line = {"fp.item_amount_" .. item.overall, amount_tooltip}
         local total_line = {"fp.item_amount_total", total_tooltip}
         local tooltip = {"", title_line, diff_line, total_line, action_line}
+        local quality = item.quality_proto and item.quality_proto.name
 
         local button = relevant_table.add{type="sprite-button", number=diff_number, style=style,
-            sprite=item.proto.sprite, tags=tags, raise_hover_events=true, mouse_button_filter={"left-and-right"}}
+            sprite=item.proto.sprite, quality=quality, tags=tags, raise_hover_events=true, mouse_button_filter={"left-and-right"}}
         tooltips.districts_box[button.index] = tooltip
     end
 

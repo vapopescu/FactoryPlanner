@@ -744,14 +744,20 @@ function matrix_engine.get_line_aggregate(line_data, floor_id, machine_amount, f
             local burner = machine_proto.burner  ---@as MachineBurner
             fuel_amount = solver.util.determine_fuel_amount(line_data, power, machine_amount)
 
-            fuel = { type = fuel_proto.type, name = line_data.fuel_name, amount=fuel_amount }  ---@type SolverItem
+            fuel = {
+                type = fuel_proto.type,
+                name = line_data.fuel_name,
+                amount=fuel_amount,
+                quality = line_data.fuel_quality
+            }  ---@type SolverItem
             structures.map.add(line_aggregate.ingredients, fuel)
 
             if fuel_proto.burnt_result then
                 add_product({
                     type = "item",
                     name = fuel_proto.burnt_result,
-                    amount = fuel_amount
+                    amount = fuel_amount,
+                    quality = line_data.fuel_quality
                 }--[[@as SolverItem]])
             end
 

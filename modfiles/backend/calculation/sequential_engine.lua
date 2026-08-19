@@ -148,7 +148,7 @@ local function update_line(line_data, aggregate, looped_fuel)
         ---@cast machine_proto.burner -nil
 
         local fuel_name = line_data.fuel_name  ---@as string
-        local fuel_item = { name = fuel_name, type = fuel_proto.type, amount = 0 }  ---@type SolverItem
+        local fuel_item = { name = fuel_name, type = fuel_proto.type, amount = 0, quality = line_data.fuel_quality }  ---@type SolverItem
         local fuel_key = structures.pack_item(fuel_item)
         fuel_amount = solver.util.determine_fuel_amount(line_data, power, machine_amount)
 
@@ -188,6 +188,7 @@ local function update_line(line_data, aggregate, looped_fuel)
                 type="item",
                 name=fuel_proto.burnt_result,
                 amount=fuel_amount,
+                quality=line_data.fuel_quality,
                 constant=true
             })
         end

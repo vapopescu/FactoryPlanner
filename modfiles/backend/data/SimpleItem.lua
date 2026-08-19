@@ -12,12 +12,14 @@ script.register_metatable("SimpleItem", SimpleItem)
 
 ---@param parent LineObject?
 ---@param proto FPItemPrototype
+---@param quality_proto FPQualityPrototype?
 ---@param amount number?
 ---@return SimpleItem
-local function init(parent, proto, amount)
+local function init(parent, proto, quality_proto, amount)
     ---@diagnostic disable-next-line: missing-fields
     local item = {
         proto = proto,
+        quality_proto = quality_proto,  -- can be nil
         class = "SimpleItem",
         amount = amount or 0,
         satisfied_amount = nil,

@@ -1734,8 +1734,10 @@ end
 ---@field module_multipliers table<ModuleEffectName, float>
 ---@field next_quality string?
 ---@field next_probability double
+---@field next_chain_probability double
 ---@field previous_quality string?
 ---@field previous_probability double
+---@field previous_chain_probability double
 
 ---@return NamedPrototypes<FPQualityPrototype>
 function generator.qualities.generate()
@@ -1767,9 +1769,11 @@ function generator.qualities.generate()
                         quality = proto.module_quality_multiplier
                     },
                     next_quality = proto.next and proto.next.name or nil,
-                    next_probability = proto.next and proto.next_probability * proto.chain_probability or 0,
+                    next_probability = proto.next and proto.next_probability or 0,
+                    next_chain_probability = proto.chain_probability or 0,
                     previous_quality = proto.previous and proto.previous.name or nil,
-                    previous_probability = proto.previous and proto.previous_probability * proto.previous_chain_probability or 0
+                    previous_probability = proto.previous and proto.previous_probability or 0,
+                    previous_chain_probability = proto.previous_chain_probability or 0
                 }  ---@type FPQualityPrototype
                 insert_prototype(qualities, quality, nil)
             end

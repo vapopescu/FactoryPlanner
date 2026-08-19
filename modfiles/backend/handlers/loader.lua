@@ -298,6 +298,36 @@ local function generate_launcher_data()
     return data
 end
 
+---@class QualityData
+---@field default_level integer
+---@field min_level integer
+---@field max_level integer
+---@field level_map table<integer, FPQualityPrototype>
+
+---@return QualityData
+local function generate_quality_data()
+    local default_level
+    local min_level = 255
+    local max_level = 0
+    local level_map = {}  ---@type table<integer, FPQualityPrototype>
+
+    for _, proto in pairs(storage.prototypes.qualities) do
+        if proto.name == "normal" then default_level = proto.level end
+        level_map[proto.level] = proto
+        min_level = math.min(min_level, proto.level)
+        max_level = math.max(max_level, proto.level)
+    end
+
+    default_level = default_level or storage.prototypes.qualities[1].level
+
+    return {
+        default_level = default_level,
+        min_level = min_level,
+        max_level = max_level,
+        level_map = level_map
+    }
+end
+
 
 -- ** TOP LEVEL **
 function loader.run()
@@ -315,6 +345,7 @@ function loader.run()
 
     PRODUCTIVITY_RECIPES = generate_productivity_recipes()
     LAUNCHER_DATA = generate_launcher_data()
+    QUALITY_DATA = generate_quality_data()
 
     MULTIPLE_PLANETS = #storage.prototypes.locations > 1
     QUALITY_ENABLED = #storage.prototypes.qualities > 0

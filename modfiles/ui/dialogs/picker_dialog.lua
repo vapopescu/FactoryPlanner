@@ -101,6 +101,7 @@ local function add_item_picker(parent_flow, player)
     local group_id_cache, group_flow_cache, subgroup_table_cache = {}, {}, {}
     modal_elements.groups = {}
 
+    -- TODO: allow the same product with different qualities
     local existing_products = {}
     if not modal_data.create_factory then  -- check if this is for a new factory or not
         local factory = lib.context.get(player, "Factory")  ---@as Factory

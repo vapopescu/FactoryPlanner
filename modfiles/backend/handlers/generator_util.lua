@@ -15,6 +15,7 @@ local _util = {}
 ---@field quality_min string?
 ---@field quality_max string?
 ---@field quality_change integer?
+---@field quality string?  -- used by solver
 
 ---@param product Product
 ---@return FormattedProduct

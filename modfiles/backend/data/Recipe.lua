@@ -159,8 +159,9 @@ function Recipe:build_items()
 
         elseif ingredient.amount > peer_product.amount then
             -- The product cancels out entirely, leaving the ingredient with the difference
-            local proto = prototyper.util.find("items", peer_product.name, peer_product.type)
-            local item = SimpleItem.init(self.parent, proto--[[@as FPItemPrototype]], peer_product.amount)
+            local proto = prototyper.util.find("items", peer_product.name, peer_product.type)  ---@as FPItemPrototype
+            local quality_proto = prototyper.util.find("qualities", peer_product.quality)  ---@as FPQualityPrototype?
+            local item = SimpleItem.init(self.parent, proto, quality_proto, peer_product.amount)
             table.insert(self.catalysts.products, item)
 
             local remainder = lib.flib.shallow_copy(ingredient)
@@ -171,8 +172,9 @@ function Recipe:build_items()
 
         else
             -- The ingredient cancels out entirely, leaving the product with the difference, if any
-            local proto = prototyper.util.find("items", ingredient.name, ingredient.type)
-            local item = SimpleItem.init(self.parent, proto--[[@as FPItemPrototype]], ingredient.amount)
+            local proto = prototyper.util.find("items", ingredient.name, ingredient.type)  ---@as FPItemPrototype
+            local quality_proto = prototyper.util.find("qualities", peer_product.quality)  ---@as FPQualityPrototype?
+            local item = SimpleItem.init(self.parent, proto, quality_proto, ingredient.amount)
             table.insert(self.catalysts.ingredients, item)
 
             local difference = peer_product.amount - ingredient.amount

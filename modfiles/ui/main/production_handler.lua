@@ -243,7 +243,7 @@ end
 local function handle_item_click(player, tags, action)
     local line = OBJECT_INDEX[tags.line_id]  ---@as LineObject
     local item_list = (tags.catalyst) and line--[[@as Line]].recipe.catalysts or line
-    local item = item_list[tags.item_category .. "s"][tags.item_index]
+    local item = item_list[tags.item_category .. "s"][tags.item_index]   ---@type SimpleItem
 
     if action == "prioritize" then
         if line.class ~= "Line" then
@@ -280,7 +280,7 @@ local function handle_item_click(player, tags, action)
         local proto, recipe_id = item.proto, nil
         if production_type == "produce" and proto.type == "fluid" and line.class == "Line" then
             local item_name = line.recipe:get_name_with_temperature(item.proto)
-            proto = prototyper.util.find("items", item_name, "fluid")
+            proto = prototyper.util.find("items", item_name, "fluid")  ---@as FPItemPrototype
             -- If a no-temperature fluid is passed, it'll show all compatible temperatures/recipes
             recipe_id = line.recipe.id
         end
@@ -309,10 +309,10 @@ local function handle_item_click(player, tags, action)
         local proto = item.proto
         if item.proto.type == "fluid" and line.class == "Line" then
             local item_name = line--[[@as Line]].recipe:get_name_with_temperature(item.proto)
-            proto = prototyper.util.find("items", item_name, "fluid")
+            proto = prototyper.util.find("items", item_name, "fluid")  ---@as FPItemPrototype
         end
 
-        local copyable_item = SimpleItem.init(nil, proto, item.amount)
+        local copyable_item = SimpleItem.init(nil, proto, item.quality_proto, item.amount)
         lib.clipboard.copy(player, copyable_item)
 
     elseif action == "paste" then
@@ -325,7 +325,7 @@ local function handle_item_click(player, tags, action)
 
     elseif action == "factoriopedia" then
         local name = item.proto.name
-        if item.proto.temperature then name = item.proto.base_name end
+        if item.proto.temperature then name = item.proto.base_name--[[@as string]] end
         player.open_factoriopedia_gui(prototypes[item.proto.type][name])
     end
 end

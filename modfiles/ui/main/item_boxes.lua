@@ -217,7 +217,9 @@ local function handle_item_button_click(player, tags, action)
         lib.gui.run_refresh(player, "item_boxes")
 
     elseif action == "copy" then
-        local copyable_item = SimpleItem.init(nil, item.proto--[[@as FPItemPrototype]], item.amount)
+        local item_proto = item.proto ---@as FPItemPrototype
+        local quality_proto = item.proto ---@as FPQualityPrototype?
+        local copyable_item = SimpleItem.init(nil, item_proto, quality_proto, item.amount)
         lib.clipboard.copy(player, copyable_item)
 
     elseif action == "paste" then

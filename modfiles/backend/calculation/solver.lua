@@ -63,11 +63,13 @@ end
 local function factory_products(factory)
     local products = {}
     for product in factory:iterator() do
+        ---@cast product.proto FPItemPrototype
         local product_data = {
             name = product.proto.name,
             type = product.proto.type,
-            amount = product:get_required_amount()
-        }
+            amount = product:get_required_amount(),
+            quality = product.quality_proto and product.quality_proto.name
+        }  ---@type SolverItem
         table.insert(products, product_data)
     end
     return products
@@ -78,14 +80,42 @@ end
 local function line_ingredients(recipe)
     local ingredients = {}
     for _, ingredient in pairs(recipe.ingredients) do
-        table.insert(ingredients, {
+        ---@cast recipe.quality_proto FPQualityPrototype?
+        local quality_proto = solver.util.determine_item_quality(recipe.quality_proto, ingredient)
+
+        -- don't need min/max temperatures or qualities here
+        local ingredient_data = {
             name = recipe:get_name_with_temperature(ingredient),
             type = ingredient.type,
             amount = ingredient.amount,
-            temperature = recipe:get_temperature(ingredient)
-        })  -- don't need min/max temperatures here
+            temperature = recipe:get_temperature(ingredient),
+            quality = quality_proto and quality_proto.name
+        }  ---@type SolverItem
+        table.insert(ingredients, ingredient_data)
     end
     return ingredients
+end
+
+---@param recipe Recipe
+---@return FormattedProduct[]
+local function line_products(recipe)
+    local products = {}
+    for _, product in pairs(recipe.products) do
+        ---@cast recipe.quality_proto FPQualityPrototype?
+        local quality_proto = solver.util.determine_item_quality(recipe.quality_proto, product)
+
+        -- don't need min/max temperatures or qualities here
+        local product_data = {
+            name = product.name,
+            type = product.type,
+            amount = product.amount,
+            proddable_amount = product.proddable_amount,
+            temperature = product.temperature,
+            quality = quality_proto and quality_proto.name
+        }  ---@type FormattedProduct
+        table.insert(products, product_data)
+    end
+    return products
 end
 
 ---@class FloorData
@@ -121,6 +151,7 @@ end
 ---@field fuel_name string?
 ---@field fuel_value number?
 ---@field fuel_performance number
+---@field fuel_quality string?
 ---@field wasted_share number
 ---@field fluid_usage_per_tick number?
 
@@ -145,7 +176,7 @@ local function generate_floor_data(player, factory, floor, calculate_emissions)
 
         if line.class == "Floor" then  ---@cast line Floor
             line_data.recipe_proto = line.first--[[@as Line]].recipe.proto
-            line_data.products = line.first--[[@as Line]].recipe.products
+            line_data.products = line_products(line.first--[[@as Line]].recipe)
             line_data.subfloor = generate_floor_data(player, factory, line, calculate_emissions)
             table.insert(floor_data.lines, line_data)
         else  ---@cast line Line
@@ -159,7 +190,7 @@ local function generate_floor_data(player, factory, floor, calculate_emissions)
                 line_data.recipe_proto = recipe_proto
                 line_data.recipe_energy = recipe_proto.energy
                 line_data.ingredients = line_ingredients(line.recipe)  -- bakes in temperatures
-                line_data.products = line.recipe.products
+                line_data.products = line_products(line.recipe)
                 line_data.percentage = line.percentage  -- non-zero
                 line_data.production_type = line.recipe.production_type
                 line_data.priority_item_proto = line.recipe.priority_item
@@ -179,6 +210,7 @@ local function generate_floor_data(player, factory, floor, calculate_emissions)
                     line_data.fuel_proto = machine.fuel.proto
                     line_data.fuel_name = machine.fuel:get_name_with_temperature()
                     line_data.fuel_value = machine.fuel:get_fuel_value()
+                    line_data.fuel_quality = machine.fuel.quality_proto and machine.fuel.quality_proto.name
                 end
 
                 -- The machine needs to potentially run slower if fuel is insufficient
@@ -229,6 +261,7 @@ local function update_object_items(object, item_category, item_results)
 
     for _, item_result in pairs(structures.map.list(item_results)) do
         local item_proto = prototyper.util.find("items", item_result.name, item_result.type)  ---@as FPItemPrototype
+        local quality_proto = prototyper.util.find("qualities", item_result.quality)  ---@as FPQualityPrototype?
 
         -- Floor items keep their temperature, since they can't be configured from there
         if object.class ~= "Floor" and item_category == "ingredients" and item_proto.base_name then
@@ -236,7 +269,7 @@ local function update_object_items(object, item_category, item_results)
         end
 
         if object.class ~= "Floor" or item_proto.type ~= "entity" or item_proto.special then
-            table.insert(item_list, SimpleItem.init(object, item_proto, item_result.amount))
+            table.insert(item_list, SimpleItem.init(object, item_proto, quality_proto, item_result.amount))
         end
     end
 
@@ -252,7 +285,8 @@ local function set_zeroed_items(line, item_category, items)
 
     for _, item in pairs(items) do
         local item_proto = prototyper.util.find("items", item.name, item.type)  ---@as FPItemPrototype
-        table.insert(item_list, SimpleItem.init(line, item_proto))
+        local quality_proto = prototyper.util.find("qualities", item.quality)  ---@as FPQualityPrototype?
+        table.insert(item_list, SimpleItem.init(line, item_proto, quality_proto))
     end
 
     line[item_category] = item_list

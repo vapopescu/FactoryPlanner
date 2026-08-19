@@ -1,8 +1,12 @@
+local structures = require("backend.calculation.structures")
+
 local _util = {
     set = {},
     matrix = {},
 }
 
+_util.pack_item = structures.pack_item
+_util.unpack_item = structures.unpack_item
 
 ---Performs `a - b` while correcting floating point errors
 ---@param a number
@@ -87,6 +91,26 @@ function _util.determine_fuel_amount(line_data, power, machine_amount)
     -- Power is already reduced by the fuel performance, so this collapses to the usage per tick
     -- when the source can't keep up, and to the demanded amount when it can
     return (power / burner.effectivity) / line_data.fuel_value--[[@as number]]
+end
+
+---@param recipe_quality FPQualityPrototype?
+---@param item Ingredient | FormattedProduct
+---@return FPQualityPrototype?
+function _util.determine_item_quality(recipe_quality, item)
+    if not QUALITY_ENABLED or item.type ~= "item" then return end
+
+    local base_quality = recipe_quality or
+            defaults.get_fallback("qualities").proto  ---@as FPQualityPrototype
+
+    local level = base_quality.level + (item.quality_change or 0)  ---@as integer
+
+    local min_proto = item.quality_min and prototyper.util.find("qualities", item.quality_min--[[@as string]])  ---@as FPQualityPrototype?
+    level = math.max(level, min_proto and min_proto.level or QUALITY_DATA.min_level)
+
+    local max_proto = item.quality_max and prototyper.util.find("qualities", item.quality_max--[[@as string]])  ---@as FPQualityPrototype?
+    level = math.min(level, max_proto and max_proto.level or QUALITY_DATA.max_level)
+
+    return QUALITY_DATA.level_map[level]
 end
 
 --- Joins two or more sets together in a new result set (`L ∪ R`).
