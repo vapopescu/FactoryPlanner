@@ -17,6 +17,7 @@ function _util.safe_sub(a, b)
     if c < MAGIC_NUMBERS.margin_of_error and c > -MAGIC_NUMBERS.margin_of_error then return 0 end
     return c
 end
+
 --- Calculates the product amount after applying productivity bonuses
 ---@param item FormattedProduct
 ---@param total_effects IntegerModuleEffects
@@ -28,6 +29,50 @@ function _util.determine_prodded_amount(item, total_effects)
     -- item.amount - item.proddable_amount + (item.proddable_amount *
     --   (1 + (productivity / MAGIC_NUMBERS.effect_precision)))
     return item.amount + (item.proddable_amount * (total_effects.productivity / MAGIC_NUMBERS.effect_precision))
+end
+
+---@alias QualityDistribution table<string, number>
+
+---@param total_effects IntegerModuleEffects
+---@param base_quality FPQualityPrototype?
+---@return QualityDistribution
+function _util.determine_quality_ditribuiton(total_effects, base_quality)
+    if not QUALITY_ENABLED then return { normal = 1 } end
+
+    local proto = base_quality or defaults.get_fallback("qualities").proto  ---@as FPQualityPrototype
+    if total_effects.quality == 0 then return { [proto.name] = 1 } end
+
+    local result = {}  ---@type QualityDistribution
+    local quality_effect = total_effects.quality / MAGIC_NUMBERS.effect_precision
+    local probability_sum = 0.0
+
+    ---@param probability number
+    local function quality_step(probability)
+        if probability == 0 then return end
+        result[proto.name] = probability
+        probability_sum = probability_sum + probability
+    end
+
+    if quality_effect > 0 then
+        quality_step(1 - quality_effect * proto.next_probability)
+
+        local next_proto = proto.next_quality and prototyper.util.find("qualities", proto.next_quality)  ---@as FPQualityPrototype?
+        while next_proto do
+            proto = next_proto
+            next_proto = proto.next_quality and prototyper.util.find("qualities", proto.next_quality)  ---@as FPQualityPrototype?
+            local probability = 1 - probability_sum
+
+            if next_proto and proto.next_chain_probability > 0 then
+                probability = probability * (1 - proto.next_chain_probability)
+            else
+                next_proto = nil  -- upgrade probability is 0, no need to continue
+            end
+
+            quality_step(probability)
+        end
+    end
+
+    return result
 end
 
 --- Determines the amount of energy needed for a machine and the emissions that produces

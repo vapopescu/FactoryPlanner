@@ -233,7 +233,19 @@ function simplex_engine.get_line_metadata(line_data, floor_id)
     -- Get simple products
     for _, item in pairs(line_data.products) do
         local amount = total_crafts * solver.util.determine_prodded_amount(item, line_data.total_effects)
-        structures.map.add(products, item, amount)
+
+        if QUALITY_ENABLED and item.type == "item" then
+            local quality_proto = item.quality and prototyper.util.find("qualities", item.quality)  ---@as FPQualityPrototype?
+            local distribution = solver.util.determine_quality_ditribuiton(line_data.total_effects, quality_proto)
+
+            for quality_name, probability in pairs(distribution) do
+                local item_copy = lib.flib.shallow_copy(item)
+                item_copy.quality = quality_name
+                structures.map.add(products, item_copy, amount * probability)
+            end
+        else
+            structures.map.add(products, item, amount)
+        end
     end
 
     -- Get simple ingredients

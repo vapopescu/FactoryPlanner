@@ -11,7 +11,7 @@ local _structures = {
 ---@field quality string?
 
 ---@alias SolverInputItem SolverItem | FPItemPrototype | SimpleItem | Ingredient | FormattedProduct | TLProduct | Fuel
----@alias SolverItemKey string `<item.proto.type>/<item.proto.name>`
+---@alias SolverItemKey string `<item.proto.type>/<item.proto.name>/<item.quality_proto.name>`
 ---@alias SolverMap table<SolverItemKey, number>
 ---@alias SolverSet table<SolverItemKey, true>
 
