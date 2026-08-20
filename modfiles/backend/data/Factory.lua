@@ -1,6 +1,7 @@
 local Object = require("backend.data.Object")
 local Floor = require("backend.data.Floor")
 local TLProduct = require("backend.data.TLProduct")
+local SimpleItem = require("backend.data.SimpleItem")
 
 ---@class Factory: Object, ObjectMethods
 ---@field class "Factory"
@@ -10,7 +11,7 @@ local TLProduct = require("backend.data.TLProduct")
 ---@field archived boolean
 ---@field name string
 ---@field solver SolverName
----@field matrix_free_items (FPItemPrototype | FPPackedPrototype)[]
+---@field matrix_free_items SimpleItem[]
 ---@field simplex_basis table<ConstraintKey, VariableKey>?
 ---@field blueprints_inventory LuaInventory
 ---@field notes string
@@ -200,7 +201,7 @@ end
 ---@field class "Factory"
 ---@field name string
 ---@field solver SolverName
----@field matrix_free_items FPPackedPrototype[]
+---@field matrix_free_items PackedSimpleItem[]
 ---@field blueprint_strings table<integer, string> sparse
 ---@field notes string
 ---@field productivity_boni table<string, IntegerEffectValue>
@@ -222,8 +223,7 @@ function Factory:pack(full)
         class = self.class,
         name = self.name,
         solver = self.solver,
-        matrix_free_items = (self.matrix_free_items) and
-            prototyper.util.simplify_prototypes(self.matrix_free_items, "type") or nil,
+        matrix_free_items = self.matrix_free_items and SimpleItem.pack_items(self.matrix_free_items),
         blueprint_strings = blueprint_strings,
         notes = self.notes,
         productivity_boni = self.productivity_boni,
@@ -275,9 +275,9 @@ function Factory:validate(player)
     self.valid = self:_validate(player) and self.valid
     self.valid = self.top_floor:validate(player) and self.valid
 
-    local matrix_free_items, valid = prototyper.util.validate_prototype_objects(self.matrix_free_items, "type")
-    self.matrix_free_items = matrix_free_items
-    self.valid = valid and self.valid
+    self.matrix_free_items = SimpleItem.unpack_items(
+        self.matrix_free_items  ---@as PackedSimpleItem[]
+    )
 
     -- Remove any invalid boni, no need to mark the factory as invalid
     for recipe_name, _ in pairs(self.productivity_boni) do
@@ -299,14 +299,6 @@ end
 function Factory:repair(player)
     self:_repair(player)
     self.top_floor:repair(player)
-
-    -- Remove any unrepairable free items so the factory remains valid
-    local free_items = self.matrix_free_items
-    for index = #free_items, 1, -1 do
-        if free_items[index].simplified then
-            table.remove(free_items, index)
-        end
-    end
 
     self.last_valid_modset = nil
     self.valid = true
