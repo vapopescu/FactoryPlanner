@@ -237,7 +237,7 @@ end
 ---@field rows MappingStruct
 ---@field columns MappingStruct
 ---@field free_variables table<string, true>
----@field matrix_free_items any
+---@field matrix_free_items FPItemPrototype[]
 ---@field free_variable_scale_factors number[]
 
 ---@param factory_data FactoryData
