@@ -2,10 +2,10 @@
 ---@class SimpleItem
 ---@field class "SimpleItem"
 ---@field proto FPItemPrototype
+---@field quality_proto FPQualityPrototype?
 ---@field amount number
 ---@field satisfied_amount number?
 ---@field parent LineObject?
----@field quality_proto FPQualityPrototype?
 local SimpleItem = {}
 SimpleItem.__index = SimpleItem
 script.register_metatable("SimpleItem", SimpleItem)
@@ -71,6 +71,7 @@ end
 ---@class PackedSimpleItem
 ---@field class "SimpleItem"
 ---@field proto FPPackedPrototype
+---@field quality_proto FPPackedPrototype?
 ---@field amount number
 
 ---@return PackedSimpleItem
@@ -78,8 +79,18 @@ function SimpleItem:pack()
     return {
         class = self.class,
         proto = prototyper.util.simplify_prototype(self.proto, "type"),
+        quality_proto = self.quality_proto and prototyper.util.simplify_prototype(self.quality_proto),
         amount = self.amount
     }
+end
+
+---@param packed_self PackedSimpleItem
+---@return SimpleItem?  -- discard if invalid
+local function unpack(packed_self)
+    local item_proto = prototyper.util.validate_prototype_object(packed_self.proto, "type")  ---@as FPItemPrototype?
+    local quality_proto = packed_self.quality_proto and prototyper.util.validate_prototype_object(packed_self.quality_proto)  ---@as FPQualityPrototype?
+
+    return item_proto and init(nil, item_proto, quality_proto, packed_self.amount)
 end
 
 -- Helper functions to pack up Floor or Line products, byproducts and ingredients
@@ -91,5 +102,16 @@ local function pack_items(items)
     return packed_items
 end
 
+---@param packed_items PackedSimpleItem[]
+---@return SimpleItem[]
+local function unpack_items(packed_items)
+    local items = {}  ---@type SimpleItem[]
+    for _, packed_item in ipairs(packed_items) do
+        local item = unpack(packed_item)
+        if item then table.insert(items, item) end
+    end
+    return items
+end
 
-return {init = init, pack_items = pack_items}
+
+return {init = init, unpack = unpack, pack_items = pack_items, unpack_items = unpack_items}

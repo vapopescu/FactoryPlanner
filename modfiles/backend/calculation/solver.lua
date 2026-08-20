@@ -51,7 +51,7 @@ local function set_blank_factory(player, factory)
         products = {},
         byproducts = {},
         ingredients = {},
-        matrix_free_items = factory.matrix_free_items  ---@as FPItemPrototype[]
+        matrix_free_items = factory.matrix_free_items
     }
 
     set_blank_floor(player, factory.top_floor)
@@ -363,14 +363,15 @@ function solver.update(player, factory)
 
                 -- In the case of linearly dependent free items, we remove it automatically if there's only one option.
                 -- Otherwise we present the user with a choice to remove problematic free items in the production box.
-                local num_ld_free_items, last_ld_free_item = 0, nil
+                local num_ld_free_items = 0
+                local last_ld_free_item_key  ---@type SolverItemKey
                 for _, ld_free_item in pairs(linear_dependence_data.linearly_dependent_free_items) do
                     num_ld_free_items = num_ld_free_items + 1
-                    last_ld_free_item = ld_free_item
+                    last_ld_free_item_key = structures.pack_item(ld_free_item)
                 end
-                if num_ld_free_items == 1 then  ---@cast last_ld_free_item FPItemPrototype
+                if num_ld_free_items == 1 then
                     for index, item in pairs(factory.matrix_free_items) do
-                        if item.type == last_ld_free_item.type and item.name == last_ld_free_item.name then
+                        if last_ld_free_item_key == structures.pack_item(item) then
                             table.remove(factory.matrix_free_items, index)
                             break
                         end
@@ -408,7 +409,7 @@ end
 ---@field player_index uint32
 ---@field factory_id ObjectID
 ---@field top_floor FloorData
----@field matrix_free_items FPItemPrototype[]
+---@field matrix_free_items SimpleItem[]
 ---@field simplex_basis table<ConstraintKey, VariableKey>
 
 --- Returns a table containing all the data needed to run the calculations for the given factory
@@ -417,7 +418,7 @@ end
 ---@return FactoryData
 function solver.generate_factory_data(player, factory)
     local calculate_emissions = lib.globals.preferences(player).calculate_emissions
-    local free_items = factory.matrix_free_items  ---@as FPItemPrototype[]
+    local free_items = factory.matrix_free_items
 
     local factory_data = {
         player_index = player.index,
@@ -433,7 +434,7 @@ end
 ---@class FactoryResult
 ---@field player_index uint32
 ---@field factory_id ObjectID
----@field matrix_free_items FPItemPrototype[]?
+---@field matrix_free_items SimpleItem[]?
 ---@field simplex_basis table<ConstraintKey, VariableKey>?
 ---@field products SolverMap
 ---@field byproducts SolverMap

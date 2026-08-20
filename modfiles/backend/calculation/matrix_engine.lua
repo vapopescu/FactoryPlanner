@@ -25,6 +25,7 @@ Currently the algorithm assumes any item which is part of at least one input and
 If a recipe has loops, typically the user needs to make voids or free variables.
 --]]
 
+local SimpleItem = require("backend.data.SimpleItem")
 local structures = require("backend.calculation.structures")
 
 local matrix_engine = {}
@@ -41,13 +42,14 @@ function matrix_engine.get_recipe_protos(recipe_set)
 end
 
 ---@param item_set SolverSet
----@return FPItemPrototype[]
-function matrix_engine.get_item_protos(item_set)
-    local item_protos = {}  ---@type FPItemPrototype[]
+---@return SimpleItem[]
+function matrix_engine.get_simple_items(item_set)
+    local item_protos = {}  ---@type SimpleItem[]
     for item_key, _ in pairs(item_set) do
         local item = structures.unpack_item(item_key)
         local item_proto = prototyper.util.find("items", item.name, item.type)  ---@as FPItemPrototype
-        table.insert(item_protos, item_proto)
+        local quality_proto = item.quality and prototyper.util.find("qualities", item.quality)  ---@as FPQualityPrototype?
+        table.insert(item_protos, SimpleItem.init(nil, item_proto, quality_proto))
     end
     return item_protos
 end
@@ -154,8 +156,8 @@ end
 
 ---@class LinearDependanceData
 ---@field linearly_dependent_recipes FPRecipePrototype[]
----@field linearly_dependent_free_items FPItemPrototype[]
----@field allowed_free_items FPItemPrototype[]
+---@field linearly_dependent_free_items SimpleItem[]
+---@field allowed_free_items SimpleItem[]
 
 ---@param factory_data FactoryData
 ---@param matrix_metadata MatrixMetadata
@@ -203,8 +205,8 @@ function matrix_engine.get_linear_dependence_data(factory_data, matrix_metadata)
 
     local result = {
         linearly_dependent_recipes = matrix_engine.get_recipe_protos(linearly_dependent_recipes),
-        linearly_dependent_free_items = matrix_engine.get_item_protos(linearly_dependent_free_items),
-        allowed_free_items = matrix_engine.get_item_protos(allowed_free_items)
+        linearly_dependent_free_items = matrix_engine.get_simple_items(linearly_dependent_free_items),
+        allowed_free_items = matrix_engine.get_simple_items(allowed_free_items)
     }  ---@type LinearDependanceData
     return result
 end
@@ -408,7 +410,7 @@ function matrix_engine.run_matrix_solver(factory_data, check_linear_dependence)
         products = main_aggregate.products,
         byproducts = main_aggregate.byproducts,
         ingredients = main_aggregate.ingredients,
-        matrix_free_items = matrix_engine.get_item_protos(matrix_free_items)
+        matrix_free_items = matrix_engine.get_simple_items(matrix_free_items)
     }
 end
 
