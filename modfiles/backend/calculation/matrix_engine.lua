@@ -30,32 +30,26 @@ local structures = require("backend.calculation.structures")
 local matrix_engine = {}
 
 
----@param recipe_ids integer[]
-function matrix_engine.get_recipe_protos(recipe_ids)
+---@param recipe_set table<integer, true>
+function matrix_engine.get_recipe_protos(recipe_set)
     local recipe_protos = {}
-    for i, recipe_id in ipairs(recipe_ids) do
+    for recipe_id, _ in pairs(recipe_set) do
         local recipe_proto = prototyper.util.find("recipes", recipe_id, nil)
-        recipe_protos[i] = recipe_proto
+        table.insert(recipe_protos, recipe_proto)
     end
     return recipe_protos
 end
 
----@param item_keys string[]
+---@param item_set SolverSet
 ---@return FPItemPrototype[]
-function matrix_engine.get_item_protos(item_keys)
-    local item_protos = {}
-    for i, item_key in ipairs(item_keys) do
-        local item_proto = matrix_engine.get_item(item_key)  ---@as FPItemPrototype?
-        item_protos[i] = item_proto
+function matrix_engine.get_item_protos(item_set)
+    local item_protos = {}  ---@type FPItemPrototype[]
+    for item_key, _ in pairs(item_set) do
+        local item = structures.unpack_item(item_key)
+        local item_proto = prototyper.util.find("items", item.name, item.type)  ---@as FPItemPrototype
+        table.insert(item_protos, item_proto)
     end
     return item_protos
-end
-
----@param item_key string
----@return FPItemPrototype
-function matrix_engine.get_item(item_key)
-    local item = structures.unpack_item(item_key)
-    return prototyper.util.find("items", item.name, item.type)  ---@as FPItemPrototype
 end
 
 function matrix_engine.print_rows(rows)
@@ -91,19 +85,19 @@ end
 
 ---@class MatrixMetadata
 ---@field recipes integer[]
----@field ingredients FPItemPrototype[]
----@field products FPItemPrototype[]
----@field byproducts FPItemPrototype[]
----@field eliminated_items FPItemPrototype[]
----@field free_items FPItemPrototype[]
+---@field ingredients SolverSet
+---@field products SolverSet
+---@field byproducts SolverSet
+---@field eliminated_items SolverSet
+---@field free_items SolverSet
 ---@field num_rows integer
 ---@field num_cols integer
 
 ---@param factory_data FactoryData
 ---@return MatrixMetadata
 function matrix_engine.get_matrix_solver_metadata(factory_data)
-    local eliminated_items = {}  ---@type table<SolverItemKey, true>
-    local free_items = {}  ---@type table<SolverItemKey, true>
+    local eliminated_items = {}  ---@type SolverSet
+    local free_items = {}  ---@type SolverSet
     local factory_metadata = matrix_engine.get_factory_metadata(factory_data)
     local recipes = factory_metadata.recipes
     local all_items = factory_metadata.all_items
@@ -128,11 +122,11 @@ function matrix_engine.get_matrix_solver_metadata(factory_data)
     local num_cols = solver.util.set.count(recipes, raw_inputs, byproducts, free_items)
     local result = {
         recipes = recipes,
-        ingredients = matrix_engine.get_item_protos(matrix_engine.set_to_ordered_list(raw_inputs)),
-        products = matrix_engine.get_item_protos(matrix_engine.set_to_ordered_list(produced_outputs)),
-        byproducts = matrix_engine.get_item_protos(matrix_engine.set_to_ordered_list(byproducts)),
-        eliminated_items = matrix_engine.get_item_protos(matrix_engine.set_to_ordered_list(eliminated_items)),
-        free_items = matrix_engine.get_item_protos(matrix_engine.set_to_ordered_list(free_items)),
+        ingredients = raw_inputs,
+        products = produced_outputs,
+        byproducts = byproducts,
+        eliminated_items = eliminated_items,
+        free_items = free_items,
         num_rows = num_rows,
         num_cols = num_cols
     }  ---@type MatrixMetadata
@@ -171,29 +165,22 @@ function matrix_engine.get_linear_dependence_data(factory_data, matrix_metadata)
     local num_cols = matrix_metadata.num_cols
 
     local linearly_dependent_recipes = {}  ---@type table<integer, true>
-    local linearly_dependent_free_items = {}  ---@type table<SolverItemKey, true>
-    local allowed_free_items = {}  ---@type table<SolverItemKey, true>
+    local linearly_dependent_free_items = {}  ---@type SolverSet
+    local allowed_free_items = {}  ---@type SolverSet
 
     local linearly_dependent_cols = matrix_engine.run_matrix_solver(factory_data, true)
     ---@cast linearly_dependent_cols -nil
     if next(linearly_dependent_cols) ~= nil then
         local free_items = matrix_metadata.free_items
-        local free_keys = {}
-        for _, free_item in ipairs(free_items) do
-            local key = structures.pack_item(free_item)
-            free_keys[key] = free_item
-        end
 
-    for col_name, _ in pairs(linearly_dependent_cols) do
-        local col_split_str = lib.split_string(col_name, "_")
-        if col_split_str[1] == "recipe" then
-            local recipe_key = col_split_str[2]  ---@as integer
-            linearly_dependent_recipes[recipe_key] = true
-        else -- "item"
-            local item_key = col_split_str[2]  ---@as SolverItemKey
-                if free_keys[item_key] then
-                    linearly_dependent_free_items[item_key] = true
-                end
+        for col_name, _ in pairs(linearly_dependent_cols) do
+            local col_split_str = lib.split_string(col_name, "_")
+            if col_split_str[1] == "recipe" then
+                local recipe_key = col_split_str[2]  ---@as integer
+                linearly_dependent_recipes[recipe_key] = true
+            else -- "item"
+                local item_key = col_split_str[2]  ---@as SolverItemKey
+                if free_items[item_key] then linearly_dependent_free_items[item_key] = true end
             end
         end
     end
@@ -206,28 +193,18 @@ function matrix_engine.get_linear_dependence_data(factory_data, matrix_metadata)
         table.remove(t_matrix)
         matrix_engine.to_reduced_row_echelon_form(t_matrix)
         local t_linearly_dependent = matrix_engine.find_linearly_dependent_cols(t_matrix, false)
-
         local eliminated_items = matrix_metadata.eliminated_items
-        local eliminated_keys = {}  ---@type table<SolverItemKey, FPItemPrototype>
-        for _, eliminated_item in ipairs(eliminated_items) do
-            local key = structures.pack_item(eliminated_item)
-            eliminated_keys[key] = eliminated_item
-        end
 
         for col, _ in pairs(t_linearly_dependent) do  ---@cast col integer
             local item = items.values[col]  ---@as SolverItemKey
-            if eliminated_keys[item] then
-                allowed_free_items[item] = true
-            end
+            if eliminated_items[item] then allowed_free_items[item] = true end
         end
     end
+
     local result = {
-        linearly_dependent_recipes = matrix_engine.get_recipe_protos(
-            matrix_engine.set_to_ordered_list(linearly_dependent_recipes)),
-        linearly_dependent_free_items = matrix_engine.get_item_protos(
-            matrix_engine.set_to_ordered_list(linearly_dependent_free_items)),
-        allowed_free_items = matrix_engine.get_item_protos(
-            matrix_engine.set_to_ordered_list(allowed_free_items))
+        linearly_dependent_recipes = matrix_engine.get_recipe_protos(linearly_dependent_recipes),
+        linearly_dependent_free_items = matrix_engine.get_item_protos(linearly_dependent_free_items),
+        allowed_free_items = matrix_engine.get_item_protos(allowed_free_items)
     }  ---@type LinearDependanceData
     return result
 end
@@ -237,7 +214,7 @@ end
 ---@field rows MappingStruct
 ---@field columns MappingStruct
 ---@field free_variables table<string, true>
----@field matrix_free_items FPItemPrototype[]
+---@field matrix_free_items SolverSet
 ---@field free_variable_scale_factors number[]
 
 ---@param factory_data FactoryData
@@ -267,15 +244,10 @@ function matrix_engine.get_matrix_data(factory_data)
     end
     local line_names = get_line_names("line", factory_data.top_floor.lines)
 
-    local raw_free_variables = solver.util.set.union(factory_metadata.raw_inputs, factory_metadata.byproducts)  ---@as table<SolverItemKey, true>
+    local raw_free_variables = solver.util.set.union(factory_metadata.raw_inputs, factory_metadata.byproducts)  ---@as SolverSet
     local free_variables = {}  ---@type table<string, true>
-    for k, _ in pairs(raw_free_variables) do
-        free_variables["item_"..k] = true
-    end
-    for _, v in ipairs(matrix_free_items) do
-        local item_key = structures.pack_item(v)
-        free_variables["item_"..item_key] = true
-    end
+    for key, _ in pairs(raw_free_variables) do free_variables["item_" .. key] = true end
+    for key, _ in pairs(matrix_free_items) do free_variables["item_" .. key] = true end
     local col_set = solver.util.set.union(line_names, free_variables)
     local columns = matrix_engine.get_mapping_struct(col_set)
     local matrix, free_variable_scale_factors = matrix_engine.get_matrix(factory_data, rows, columns)
@@ -436,7 +408,7 @@ function matrix_engine.run_matrix_solver(factory_data, check_linear_dependence)
         products = main_aggregate.products,
         byproducts = main_aggregate.byproducts,
         ingredients = main_aggregate.ingredients,
-        matrix_free_items = matrix_free_items
+        matrix_free_items = matrix_engine.get_item_protos(matrix_free_items)
     }
 end
 
@@ -532,14 +504,8 @@ function matrix_engine.get_lines_metadata(lines)
         else  ---@cast line LineData
             local line_aggregate = matrix_engine.get_line_aggregate(line, 1, 1)
             matrix_engine.consolidate(line_aggregate)
-            for _, item in pairs(structures.map.list(line_aggregate.ingredients)) do
-                local item_key = structures.pack_item(item)
-                line_inputs[item_key] = true
-            end
-            for _, item in pairs(structures.map.list(line_aggregate.products)) do
-                local item_key = structures.pack_item(item)
-                line_outputs[item_key] = true
-            end
+            for item_key, _ in pairs(line_aggregate.ingredients) do line_inputs[item_key] = true end
+            for item_key, _ in  pairs(line_aggregate.products) do line_outputs[item_key] = true end
             table.insert(line_recipes, line.recipe_proto.id)
         end
     end
