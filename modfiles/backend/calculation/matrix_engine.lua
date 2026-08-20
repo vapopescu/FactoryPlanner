@@ -721,16 +721,28 @@ function matrix_engine.get_line_aggregate(line_data, floor_id, machine_amount, f
     end
 
     for _, product in pairs(line_data.products) do
-        local prodded_amount = solver.util.determine_prodded_amount(product, total_effects)
-        add_product(product, prodded_amount * total_crafts)
+        local amount = total_crafts * solver.util.determine_prodded_amount(product, total_effects)
+
+        if QUALITY_ENABLED and product.type == "item" then
+            local quality_proto = product.quality and prototyper.util.find("qualities", product.quality)  ---@as FPQualityPrototype?
+            local distribution = solver.util.determine_quality_ditribuiton(total_effects, quality_proto)
+
+            for quality_name, probability in pairs(distribution) do
+                local product_copy = lib.flib.shallow_copy(product)
+                product_copy.quality = quality_name
+                add_product(product_copy, amount * probability)
+            end
+        else
+            add_product(product, amount)
+        end
     end
 
     for _, ingredient in pairs(line_data.ingredients) do
-        local ingredient_amount = (ingredient.amount * total_crafts)
+        local amount = (ingredient.amount * total_crafts)
         if ingredient.type ~= "fluid" then  -- doesn't apply to mining fluids
-            ingredient_amount = ingredient_amount * line_data.resource_drain_rate
+            amount = amount * line_data.resource_drain_rate
         end
-        structures.map.add(line_aggregate.ingredients, ingredient, ingredient_amount)
+        structures.map.add(line_aggregate.ingredients, ingredient, amount)
     end
 
     -- Determine power (including potential fuel needs) and emissions
