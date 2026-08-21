@@ -25,22 +25,40 @@ local function refresh_solver_frame(player)
     local matrix_metadata = matrix_engine.get_matrix_solver_metadata(factory_data)
     if matrix_metadata.num_rows == 0 then return end  -- skip if there are no active lines
     local linear_dependence_data = matrix_engine.get_linear_dependence_data(factory_data, matrix_metadata)
-    local free_items = matrix_engine.get_item_protos(matrix_metadata.free_items)
+    local free_items = matrix_engine.get_simple_items(matrix_metadata.free_items)
     local num_needed_free_items = matrix_metadata.num_rows - matrix_metadata.num_cols + #free_items
 
     ---@param flow LuaGuiElement
     ---@param status "unrestricted" | "constrained"
     ---@param color "default" | "green"
-    ---@param items FPItemPrototype[]
+    ---@param items SimpleItem[]
     local function build_unrestricted_item_button_flow(flow, status, color, items)
-        for _, proto in pairs(items) do
-            ---@class SwitchMatrixItemTags
+        for _, item in pairs(items) do
+            local quality = item.quality_proto and item.quality_proto.name
+
+            ---@class SwitchMatrixItemTags : Tags
             ---@field status "unrestricted" | "constrained"
             ---@field type string
             ---@field name string
-            flow.add{type="sprite-button", sprite=proto.sprite, tooltip={"fp.turn_" .. status, proto.localised_name},
-                tags={mod="fp", on_gui_click="switch_matrix_item", status=status, type=proto.type, name=proto.name},
-                style="fflib_slot_button_" .. color .. "_small", mouse_button_filter={"left"}}
+            ---@field quality string?
+            local tags = {
+                mod="fp",
+                on_gui_click="switch_matrix_item",
+                status=status,
+                type=item.proto.type,
+                name=item.proto.name,
+                quality=quality,
+            }  ---@type SwitchMatrixItemTags
+
+            flow.add{
+                type="sprite-button",
+                sprite=item.proto.sprite,
+                quality = quality,
+                tooltip={"fp.turn_" .. status, item.proto.localised_name},
+                tags=tags,
+                style="fflib_slot_button_" .. color .. "_small",
+                mouse_button_filter={"left"}
+            }
         end
     end
 
@@ -191,17 +209,18 @@ end
 ---@param tags SwitchMatrixItemTags
 local function switch_matrix_item(player, tags, _)
     local factory = lib.context.get(player, "Factory")  ---@as Factory
-
+    local button_item = { type = tags.type, name = tags.name, quality = tags.quality, amount = 0 }  ---@type SolverItem
+    local button_item_key = solver.util.pack_item(button_item)
     if tags.status == "unrestricted" then
         for index, item in pairs(factory.matrix_free_items) do
-            if item.type == tags.type and item.name == tags.name then
+            if button_item_key == solver.util.pack_item(item) then
                 table.remove(factory.matrix_free_items, index)
                 break
             end
         end
     else -- "constrained"
-        local item_proto = prototyper.util.find("items", tags.name, tags.type)
-        table.insert(factory.matrix_free_items, item_proto)
+        local item = matrix_engine.get_simple_items({[button_item_key] = true})[1]
+        table.insert(factory.matrix_free_items, item)
     end
 
     solver.update(player)
