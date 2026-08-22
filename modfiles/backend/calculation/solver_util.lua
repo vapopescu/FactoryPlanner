@@ -1,7 +1,12 @@
+local structures = require("backend.calculation.structures")
+
 local _util = {
     set = {},
     matrix = {},
 }
+
+_util.pack_item = structures.pack_item
+_util.unpack_item = structures.unpack_item
 
 
 ---Performs `a - b` while correcting floating point errors
