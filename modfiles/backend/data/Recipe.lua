@@ -136,6 +136,7 @@ end
 --- to be done dynamically based on user-picked fluid ingredient temperatures.
 function Recipe:build_items()
     ---@cast self.proto FPRecipePrototype
+    ---@cast self.quality_proto FPQualityPrototype?
     local products = self.proto.products
 
     ---@type table<ItemType, table<ItemName, number>>
@@ -160,7 +161,7 @@ function Recipe:build_items()
         elseif ingredient.amount > peer_product.amount then
             -- The product cancels out entirely, leaving the ingredient with the difference
             local proto = prototyper.util.find("items", peer_product.name, peer_product.type)  ---@as FPItemPrototype
-            local quality_proto = prototyper.util.find("qualities", peer_product.quality)  ---@as FPQualityPrototype?
+            local quality_proto = solver.util.determine_item_quality(self.quality_proto, peer_product)
             local item = SimpleItem.init(self.parent, proto, quality_proto, peer_product.amount)
             table.insert(self.catalysts.products, item)
 
@@ -173,7 +174,7 @@ function Recipe:build_items()
         else
             -- The ingredient cancels out entirely, leaving the product with the difference, if any
             local proto = prototyper.util.find("items", ingredient.name, ingredient.type)  ---@as FPItemPrototype
-            local quality_proto = prototyper.util.find("qualities", peer_product.quality)  ---@as FPQualityPrototype?
+            local quality_proto = solver.util.determine_item_quality(self.quality_proto, peer_product)
             local item = SimpleItem.init(self.parent, proto, quality_proto, ingredient.amount)
             table.insert(self.catalysts.ingredients, item)
 
