@@ -298,8 +298,8 @@ function simplex_engine.get_line_metadata(line_data, floor_id)
         local fuel = {
             name = line_data.fuel_name,
             type = line_data.fuel_proto.type,
-            amount = 0,
-            quality = line_data.fuel_quality
+            quality = line_data.fuel_quality,
+            amount = 0
         }  ---@type SolverItem
         local fuel_key = structures.pack_item(fuel)
         local fuel_as_ingredient = ingredients[fuel_key] or 0
@@ -310,8 +310,8 @@ function simplex_engine.get_line_metadata(line_data, floor_id)
             local burnt_result = {
                 name = line_data.fuel_proto.burnt_result,
                 type = "item",
-                amount = 0,
-                quality = line_data.fuel_quality
+                quality = line_data.fuel_quality,
+                amount = 0
             }  ---@type SolverItem
             structures.map.add(products, burnt_result, fuel_amount)
         end
@@ -481,8 +481,8 @@ function simplex_engine.update_line(player_index, floor_id, line_data, scale_fac
             local fuel = {
                 name = line_data.fuel_name,
                 type = line_data.fuel_proto.type,
-                amount = 0,
-                quality = line_data.fuel_quality
+                quality = line_data.fuel_quality,
+                amount = 0
             }  ---@type SolverItem
 
             if item_key == structures.pack_item(fuel) then

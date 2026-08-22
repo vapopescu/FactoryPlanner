@@ -7,11 +7,11 @@ local Object = require("backend.data.Object")
 ---@field class "TLProduct"
 ---@field parent Factory
 ---@field proto FPItemPrototype | FPPackedPrototype
+---@field quality_proto (FPQualityPrototype | FPPackedPrototype)?
 ---@field defined_by ProductDefinedBy
 ---@field required_amount number
 ---@field belt_proto (FPBeltPrototype | FPPackedPrototype)?
 ---@field belt_stack integer?
----@field quality_proto (FPQualityPrototype | FPPackedPrototype)?
 ---@field amount number
 local TLProduct = Object.methods()
 TLProduct.__index = TLProduct
@@ -114,11 +114,11 @@ end
 ---@class PackedProduct: PackedObject
 ---@field class "TLProduct"
 ---@field proto FPPackedPrototype
+---@field quality_proto FPPackedPrototype?
 ---@field defined_by ProductDefinedBy
 ---@field required_amount number
 ---@field belt_proto FPPackedPrototype?
 ---@field belt_stack integer?
----@field quality_proto FPPackedPrototype?
 
 ---@param full boolean
 ---@return PackedProduct packed_self
@@ -126,11 +126,11 @@ function TLProduct:pack(full)
     return {
         class = self.class,
         proto = prototyper.util.simplify_prototype(self.proto, "type"),
+        quality_proto = (self.quality_proto) and prototyper.util.simplify_prototype(self.quality_proto) or nil,
         defined_by = self.defined_by,
         required_amount = self.required_amount,
         belt_proto = (self.belt_proto) and prototyper.util.simplify_prototype(self.belt_proto, nil) or nil,
         belt_stack = self.belt_stack,
-        quality_proto = (self.quality_proto) and prototyper.util.simplify_prototype(self.quality_proto) or nil,
 
         amount = (full) and self.amount or nil
     }
@@ -141,12 +141,12 @@ end
 local function unpack(packed_self)
     -- Prototypes are unpacked at validate
     local unpacked_self = init(packed_self.proto)
+    unpacked_self.quality_proto = packed_self.quality_proto
 
     unpacked_self.defined_by = packed_self.defined_by
     unpacked_self.required_amount = packed_self.required_amount
     unpacked_self.belt_proto = packed_self.belt_proto
     unpacked_self.belt_stack = packed_self.belt_stack
-    unpacked_self.quality_proto = packed_self.quality_proto
 
     return unpacked_self
 end
@@ -157,6 +157,9 @@ end
 function TLProduct:validate(player)
     self.proto = prototyper.util.validate_prototype_object(self.proto, "type")  ---@as FPItemPrototype | FPPackedPrototype
     self.valid = (not self.proto.simplified)
+
+    self.quality_proto = self.quality_proto and prototyper.util.validate_prototype_object(self.quality_proto)
+    self.quality_proto = (self.quality_proto and not self.quality_proto.simplified) and self.quality_proto or nil
 
     self.belt_proto = (self.belt_proto) and prototyper.util.validate_prototype_object(self.belt_proto, nil) or nil
     if self.belt_proto then  ---@cast self.belt_stack -nil
@@ -170,7 +173,6 @@ function TLProduct:validate(player)
         end
     end
 
-    self.quality_proto = self.quality_proto and prototyper.util.validate_prototype_object(self.quality_proto)
     return self.valid
 end
 

@@ -128,7 +128,7 @@ local function refresh_item_box(player, factory, show_floor_items, item_category
             local style = (item_category == "byproduct") and "fflib_slot_button_red" or "fflib_slot_button_default"
             local tooltip = {"", {"fp.tt_title", item.proto.localised_name}, "\n", number_tooltip,
                 "\n", MODIFIER_ACTIONS[action].tooltip}
-            local quality = item.quality_proto and item.quality_proto.name or nil
+            local quality = item.quality_proto and item.quality_proto.name
 
             local tags = {mod="fp", on_gui_click=action, item_category=item_category, item_id=nil, item_index=index,
                 on_gui_hover="set_tooltip", context="item_boxes"}  ---@type HandleItemBoxClickTags
@@ -218,7 +218,7 @@ local function handle_item_button_click(player, tags, action)
 
     elseif action == "copy" then
         local item_proto = item.proto ---@as FPItemPrototype
-        local quality_proto = item.proto ---@as FPQualityPrototype?
+        local quality_proto = item.quality_proto ---@as FPQualityPrototype?
         local copyable_item = SimpleItem.init(nil, item_proto, quality_proto, item.amount)
         lib.clipboard.copy(player, copyable_item)
 

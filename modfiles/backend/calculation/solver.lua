@@ -67,8 +67,8 @@ local function factory_products(factory)
         local product_data = {
             name = product.proto.name,
             type = product.proto.type,
-            amount = product:get_required_amount(),
-            quality = product.quality_proto and product.quality_proto.name
+            quality = product.quality_proto and product.quality_proto.name,
+            amount = product:get_required_amount()
         }  ---@type SolverItem
         table.insert(products, product_data)
     end
@@ -87,9 +87,9 @@ local function line_ingredients(recipe)
         local ingredient_data = {
             name = recipe:get_name_with_temperature(ingredient),
             type = ingredient.type,
+            quality = quality_proto and quality_proto.name,
             amount = ingredient.amount,
-            temperature = recipe:get_temperature(ingredient),
-            quality = quality_proto and quality_proto.name
+            temperature = recipe:get_temperature(ingredient)
         }  ---@type SolverItem
         table.insert(ingredients, ingredient_data)
     end
@@ -108,10 +108,10 @@ local function line_products(recipe)
         local product_data = {
             name = product.name,
             type = product.type,
+            quality = quality_proto and quality_proto.name,
             amount = product.amount,
             proddable_amount = product.proddable_amount,
-            temperature = product.temperature,
-            quality = quality_proto and quality_proto.name
+            temperature = product.temperature
         }  ---@type FormattedProduct
         table.insert(products, product_data)
     end
@@ -149,9 +149,9 @@ end
 ---@field beacon_power double
 ---@field fuel_proto AnyFPFuelPrototype?
 ---@field fuel_name string?
+---@field fuel_quality string?
 ---@field fuel_value number?
 ---@field fuel_performance number
----@field fuel_quality string?
 ---@field wasted_share number
 ---@field fluid_usage_per_tick number?
 
@@ -209,8 +209,8 @@ local function generate_floor_data(player, factory, floor, calculate_emissions)
                 if machine.fuel ~= nil then
                     line_data.fuel_proto = machine.fuel.proto
                     line_data.fuel_name = machine.fuel:get_name_with_temperature()
-                    line_data.fuel_value = machine.fuel:get_fuel_value()
                     line_data.fuel_quality = machine.fuel.quality_proto and machine.fuel.quality_proto.name
+                    line_data.fuel_value = machine.fuel:get_fuel_value()
                 end
 
                 -- The machine needs to potentially run slower if fuel is insufficient

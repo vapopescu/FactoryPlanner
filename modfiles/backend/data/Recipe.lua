@@ -13,6 +13,7 @@ local SimpleItem = require("backend.data.SimpleItem")
 ---@field class "Recipe"
 ---@field parent Line
 ---@field proto FPRecipePrototype | FPPackedPrototype
+---@field quality_proto (FPQualityPrototype | FPPackedPrototype)?
 ---@field production_type RecipeProductionType
 ---@field priority_item (FPItemPrototype | FPPackedPrototype)?
 ---@field temperatures table<string, float>
@@ -21,7 +22,6 @@ local SimpleItem = require("backend.data.SimpleItem")
 ---@field products FormattedProduct[]
 ---@field catalysts RecipeCatalysts
 ---@field effects IntegerModuleEffects?
----@field quality_proto (FPQualityPrototype | FPPackedPrototype)?
 local Recipe = Object.methods()
 Recipe.__index = Recipe
 script.register_metatable("Recipe", Recipe)
@@ -253,10 +253,10 @@ end
 ---@class PackedRecipe: PackedObject
 ---@field class "Recipe"
 ---@field proto FPPackedPrototype
+---@field quality_proto FPPackedPrototype?
 ---@field production_type RecipeProductionType
 ---@field priority_item FPPackedPrototype?
 ---@field temperatures table<string, float>
----@field quality_proto FPPackedPrototype?
 
 ---@param full boolean
 ---@return PackedRecipe packed_self
@@ -264,11 +264,11 @@ function Recipe:pack(full)
     return {
         class = self.class,
         proto = prototyper.util.simplify_prototype(self.proto, nil),
+        quality_proto = self.quality_proto and prototyper.util.simplify_prototype(self.quality_proto),
         production_type = self.production_type,
         priority_item = (self.priority_item) and
             prototyper.util.simplify_prototype(self.priority_item, "type") or nil,
-        temperatures = self.temperatures,
-        quality_proto = self.quality_proto and prototyper.util.simplify_prototype(self.quality_proto)
+        temperatures = self.temperatures
     }
 end
 
@@ -278,11 +278,11 @@ end
 local function unpack(packed_self, parent)
     -- Prototypes are unpacked at validate
     local unpacked_self = init(parent, packed_self.proto, packed_self.production_type)
+    unpacked_self.quality_proto = packed_self.quality_proto
     unpacked_self.priority_item = packed_self.priority_item
 
     -- Will be automatically unpacked by the validation process
     unpacked_self.temperatures = packed_self.temperatures
-    unpacked_self.quality_proto = packed_self.quality_proto
 
     return unpacked_self
 end
@@ -293,6 +293,9 @@ end
 function Recipe:validate(player)
     self.proto = prototyper.util.validate_prototype_object(self.proto, nil)  ---@as FPRecipePrototype | FPPackedPrototype
     self.valid = (not self.proto.simplified)
+
+    self.quality_proto = self.quality_proto and prototyper.util.validate_prototype_object(self.quality_proto)
+    self.quality_proto = (self.quality_proto and not self.quality_proto.simplified) and self.quality_proto or nil
 
     -- A recipe the force can't obtain at all is not valid, mirroring what the recipe picker offers
     if self.valid then
@@ -333,7 +336,6 @@ function Recipe:validate(player)
         self:build_items()
     end
 
-    self.quality_proto = self.quality_proto and prototyper.util.validate_prototype_object(self.quality_proto)
     return self.valid
 end
 

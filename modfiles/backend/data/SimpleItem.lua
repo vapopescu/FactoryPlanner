@@ -87,10 +87,15 @@ end
 ---@param packed_self PackedSimpleItem
 ---@return SimpleItem?  -- discard if invalid
 local function unpack(packed_self)
-    local item_proto = prototyper.util.validate_prototype_object(packed_self.proto, "type")  ---@as FPItemPrototype?
-    local quality_proto = packed_self.quality_proto and prototyper.util.validate_prototype_object(packed_self.quality_proto)  ---@as FPQualityPrototype?
+    local item_proto = prototyper.util.validate_prototype_object(packed_self.proto, "type")
+    local valid = not item_proto.simplified
+    ---@cast item_proto FPItemPrototype
 
-    return item_proto and init(nil, item_proto, quality_proto, packed_self.amount)
+    local quality_proto = packed_self.quality_proto and prototyper.util.validate_prototype_object(packed_self.quality_proto)
+    quality_proto = (quality_proto and not quality_proto.simplified) and quality_proto or nil
+    ---@cast quality_proto FPQualityPrototype?
+
+    return valid and init(nil, item_proto, quality_proto, packed_self.amount) or nil
 end
 
 -- Helper functions to pack up Floor or Line products, byproducts and ingredients

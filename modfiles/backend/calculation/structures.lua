@@ -6,9 +6,9 @@ local _structures = {
 ---@class SolverItem
 ---@field type string
 ---@field name string
+---@field quality string?
 ---@field amount number
 ---@field temperature float?
----@field quality string?
 
 ---@alias SolverInputItem SolverItem | FPItemPrototype | SimpleItem | Ingredient | FormattedProduct | TLProduct | Fuel
 ---@alias SolverItemKey string `<item.proto.type>/<item.proto.name>/<item.quality_proto.name>`
@@ -38,9 +38,9 @@ function _structures.unpack_item(item_key, amount)
     return {
         type = type,
         name = name,
-        amount = amount or 0,
-        temperature = temperature,
         quality = quality,
+        temperature = temperature,
+        amount = amount or 0
     }  ---@type SolverItem
 end
 

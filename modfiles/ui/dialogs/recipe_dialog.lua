@@ -563,7 +563,7 @@ local function close_recipe_dialog(player, action)
     local modal_data = lib.globals.modal_data(player)  ---@as RecipeDialogModalData
 
     if action == "submit" then
-        attempt_adding_line(player, _, modal_data)
+        attempt_adding_line(player, 0, modal_data)
     end
 end
 

@@ -500,8 +500,8 @@ local function add_fuel(line, parent_flow, metadata)
     local tags = {mod="fp", on_gui_click="act_on_line_fuel", fuel_id=fuel.id, on_gui_hover="set_tooltip",
         context="production_table"}
     -- Insert this before special ingredients, ie. index 1
-    local button = parent_flow.add{type="sprite-button", tags=tags, sprite=fuel.proto.sprite, style=style,
-        quality=quality, number=amount, mouse_button_filter={"left-and-right"}, raise_hover_events=true, index=1}
+    local button = parent_flow.add{type="sprite-button", tags=tags, sprite=fuel.proto.sprite, quality=quality,
+        style=style, number=amount, mouse_button_filter={"left-and-right"}, raise_hover_events=true, index=1}
     metadata.tooltips[button.index] = tooltip
 end
 

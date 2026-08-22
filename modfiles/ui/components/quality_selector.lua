@@ -26,7 +26,7 @@ function quality_selector.add_flow(parent, modal_data)
         buttons[proto.name] = button
     end
 
-    modal_data.modal_elements["quality_buttons"] = buttons
+    modal_data.modal_elements.quality_buttons = buttons
     quality_selector.refresh_element(modal_data)
 end
 
