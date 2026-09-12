@@ -44,6 +44,7 @@ end
 ---@field item_id ObjectID?
 ---@field item_index integer?
 ---@field context "item_boxes"
+---@field flags GUIActionFlags
 
 ---@param player LuaPlayer
 ---@param factory Factory?
@@ -62,17 +63,32 @@ local function refresh_item_box(player, factory, show_floor_items, item_category
     if not valid_factory then return 0 end  ---@cast factory -nil
 
     local table_item_count = 0
-    local floor = (show_floor_items) and lib.context.get(player, "Floor") or factory.top_floor
+    local current_floor = lib.context.get(player, "Floor")  ---@as Floor
+    local floor = (show_floor_items) and current_floor or factory.top_floor
+    local wrong_floor = (not show_floor_items and current_floor.level > 1)
 
     if item_category == "product" and (not show_floor_items or floor.level == 1) then
         for product in factory:iterator() do  ---@cast product.proto FPItemPrototype
-            local action = (product.proto.special) and "act_on_top_level_special_product" or "act_on_top_level_product"
             local style = "fflib_slot_button_default"
 
             local amount, number_tooltip = nil, nil
             local required_amount = product:get_required_amount()
 
-            if product.proto.type == "entity" and product.proto.special then
+            local special = (product.proto.type == "entity" and product.proto.special)
+            local flags = {
+                top_level = true,
+                product = true,
+                special = special,
+                cursor = (product.proto.type ~= "entity"),
+                archived = factory.archived,
+                wrong_floor = wrong_floor,
+                ingredient_only = product.proto.ingredient_only,
+                move_left = (product.previous ~= nil),
+                move_right = (product.next ~= nil),
+                factoriopedia = (lib.get_factoriopedia_proto(product.proto) ~= nil)
+            }
+
+            if flags.special then
                 amount = lib.format.button_number(required_amount)
                 number_tooltip = lib.format.special_tooltip(product.proto.name, required_amount)
             else
@@ -87,12 +103,12 @@ local function refresh_item_box(player, factory, show_floor_items, item_category
             elseif percentage_string == "100" then style = "fflib_slot_button_green"
             else style = "fflib_slot_button_yellow" end
 
-            local tooltip = {"", {"fp.tt_title", product.proto.localised_name}, "\n", number_tooltip,
-                satisfaction_line, "\n", MODIFIER_ACTIONS[action].tooltip}
+            local tooltip = {"", {"fp.tt_title", product.proto.localised_name}, "\n", number_tooltip, satisfaction_line}
             local quality = product.quality_proto and product.quality_proto.name or nil
 
-            local tags = {mod="fp", on_gui_click=action, item_category=item_category, item_id=product.id,
-                on_gui_hover="set_tooltip", context="item_boxes"}  ---@type HandleItemBoxClickTags
+            ---@type HandleItemBoxClickTags
+            local tags = {mod="fp", on_gui_click="act_on_item_box", item_category=item_category, item_id=product.id,
+                on_gui_hover="set_tooltip", context="item_boxes", flags=flags}
             local button = table_items.add{type="sprite-button", tags=tags--[[@as Tags]], number=amount, style=style,
                 sprite=product.proto.sprite, quality = quality, mouse_button_filter={"left-and-right"}, raise_hover_events=true}
             tooltips.item_boxes[button.index] = tooltip
@@ -112,12 +128,23 @@ local function refresh_item_box(player, factory, show_floor_items, item_category
         button.style.margin = 4
         table_item_count = table_item_count + 1
     else
-        for index, item in pairs(floor[item_category .. "s"]--[[@as table<integer,SimpleItem>]]) do
-            local action = "act_on_floor_" .. item_category
+        for index, item in pairs(floor[item_category .. "s"]) do
             local amount, number_tooltip = nil, nil
 
-            if item.proto.type == "entity" and item.proto.special then
-                action = "act_on_floor_special"
+            local special = (item.proto.type == "entity" and item.proto.special)
+            local flags = {
+                top_level = false,
+                product = (item_category == "product"),
+                special = special,
+                cursor = (item.proto.type ~= "entity"),
+                archived = factory.archived,
+                wrong_floor = wrong_floor,
+                ingredient_only = item.proto.ingredient_only,
+                byproduct = (item_category == "byproduct"),
+                factoriopedia = (lib.get_factoriopedia_proto(item.proto) ~= nil)
+            }
+
+            if flags.special then
                 amount = lib.format.button_number(item.amount)
                 number_tooltip = lib.format.special_tooltip(item.proto.name, item.amount)
             else
@@ -126,12 +153,12 @@ local function refresh_item_box(player, factory, show_floor_items, item_category
             end
 
             local style = (item_category == "byproduct") and "fflib_slot_button_red" or "fflib_slot_button_default"
-            local tooltip = {"", {"fp.tt_title", item.proto.localised_name}, "\n", number_tooltip,
-                "\n", MODIFIER_ACTIONS[action].tooltip}
+            local tooltip = {"", {"fp.tt_title", item.proto.localised_name}, "\n", number_tooltip}
             local quality = item.quality_proto and item.quality_proto.name
 
-            local tags = {mod="fp", on_gui_click=action, item_category=item_category, item_id=nil, item_index=index,
-                on_gui_hover="set_tooltip", context="item_boxes"}  ---@type HandleItemBoxClickTags
+            ---@type HandleItemBoxClickTags
+            local tags = {mod="fp", on_gui_click="act_on_item_box", item_category=item_category, item_id=item.id,
+                item_index=index, on_gui_hover="set_tooltip", context="item_boxes", flags=flags}
             local button = table_items.add{type="sprite-button", tags=tags--[[@as Tags]], number=amount, style=style,
                 sprite=item.proto.sprite, quality = quality, mouse_button_filter={"left-and-right"}, raise_hover_events=true}
             tooltips.item_boxes[button.index] = tooltip
@@ -197,15 +224,9 @@ local function handle_item_button_click(player, tags, action)
     end
 
     if action == "add_recipe" then
-        local floor = lib.context.get(player, "Floor")  ---@as Floor
-        if floor.level > 1 and not show_floor_items then
-            local message = {"fp.error_no_main_recipe_on_subfloor"}
-            lib.messages.raise(player, "error", message, 1)
-        else
-            local production_type = (tags.item_category == "byproduct") and "consume" or "produce"
-            lib.gui.open_dialog(player, {dialog="recipe", modal_data={production_type=production_type,
-                category_id=item.proto.category_id, product_id=item.proto.id, quality_proto = item.quality_proto}})
-        end
+        local production_type = (tags.item_category == "byproduct") and "consume" or "produce"
+        lib.gui.open_dialog(player, {dialog="recipe", modal_data={production_type=production_type,
+            category_id=item.proto.category_id, product_id=item.proto.id, quality_proto = item.quality_proto}})
 
     elseif action == "edit" then
         lib.gui.open_dialog(player, {dialog="picker",
@@ -217,26 +238,32 @@ local function handle_item_button_click(player, tags, action)
         lib.gui.run_refresh(player, "item_boxes")
 
     elseif action == "copy" then
-        local item_proto = item.proto ---@as FPItemPrototype
-        local quality_proto = item.quality_proto ---@as FPQualityPrototype?
-        local copyable_item = SimpleItem.init(nil, item_proto, quality_proto, item.amount)
+        local copyable_item = (item.class == "TLProduct") and item
+            or SimpleItem.init(nil, item.proto--[[@as FPItemPrototype]], item.quality_proto--[[@as FPQualityPrototype?]], item.amount)
         lib.clipboard.copy(player, copyable_item)
 
     elseif action == "paste" then
         lib.clipboard.paste(player, item)
 
-    elseif action == "delete" then
+    elseif action == "delete" or action == "cut" then
+        if action == "cut" then
+            lib.clipboard.copy(player, item, true)
+        end
+
         lib.context.get(player, "Factory")--[[@as Factory]]:remove(item)
         solver.update(player)
         lib.gui.run_refresh(player, "all")  -- make sure product icons are updated
 
-    elseif action == "put_into_cursor" then
+    elseif action == "pipette" then
+        lib.cursor.pipette_item(player, item.proto--[[@as FPItemPrototype]])
+
+    elseif action == "put_into_combinator" then
         local amount = (item.class == "TLProduct") and item:get_required_amount() or item.amount
-        lib.cursor.handle_item_click(player, item.proto--[[@as FPItemPrototype]], amount)
+        lib.cursor.put_into_combinator(player, item.proto--[[@as FPItemPrototype]], amount)
 
     elseif action == "factoriopedia" then
-        local name = (item.proto.temperature) and item.proto.base_name or item.proto.name
-        player.open_factoriopedia_gui(prototypes[item.proto.type][name])
+        local proto = item.proto  ---@as FPItemPrototype
+        player.open_factoriopedia_gui(lib.get_factoriopedia_proto(proto))
     end
 end
 
@@ -323,6 +350,36 @@ end
 -- ** EVENTS **
 local listeners = {}  ---@type ListenerDefinitions
 
+---@param flags GUIActionFlags
+---@return boolean?
+local function show_add_recipe(flags)
+    return flags.top_level or not flags.product or flags.special
+end
+
+---@param flags GUIActionFlags
+---@return boolean?
+local function is_top_level_product(flags)
+    return flags.top_level
+end
+
+---@param flags GUIActionFlags
+---@return boolean
+---@return LocalisedString? warning
+local function can_move_left(flags)
+    if flags.archived then return false, {"fp.factory_archived_edit"} end
+    if not flags.move_left then return false, {"fp.item_already_leftmost"} end
+    return true
+end
+
+---@param flags GUIActionFlags
+---@return boolean
+---@return LocalisedString? warning
+local function can_move_right(flags)
+    if flags.archived then return false, {"fp.factory_archived_edit"} end
+    if not flags.move_right then return false, {"fp.item_already_rightmost"} end
+    return true
+end
+
 listeners.gui = {
     on_gui_click = {
         {
@@ -330,64 +387,19 @@ listeners.gui = {
             handler = handle_item_add
         },
         {
-            name = "act_on_top_level_product",
+            name = "act_on_item_box",
             actions_table = {
-                add_recipe = {shortcut="left", limitations={archive_open=false}, show=true},
-                edit = {shortcut="control-left", limitations={archive_open=false}, show=true},
-                delete = {shortcut="control-right", limitations={archive_open=false}},
-                move_left = {limitations={archive_open=false}},
-                move_right = {limitations={archive_open=false}},
+                add_recipe = {shortcut="left", core=true, show=show_add_recipe, enable=lib.actions.can_add_recipe},
+                edit = {shortcut="control-left", core=true, show=is_top_level_product, enable=lib.actions.can_edit_factory},
+                delete = {input="delete", show=is_top_level_product, enable=lib.actions.can_edit_factory},
+                move_left = {show=is_top_level_product, enable=can_move_left},
+                move_right = {show=is_top_level_product, enable=can_move_right},
                 copy = {shortcut="shift-right"},
-                paste = {shortcut="shift-left", limitations={archive_open=false}},
-                put_into_cursor = {shortcut="alt-right"},
-                factoriopedia = {shortcut="alt-left"}
-            },
-            handler = handle_item_button_click
-        },
-        {
-            name = "act_on_top_level_special_product",
-            actions_table = {
-                add_recipe = {shortcut="left", limitations={archive_open=false}, show=true},
-                edit = {shortcut="control-left", limitations={archive_open=false}, show=true},
-                delete = {shortcut="control-right", limitations={archive_open=false}},
-                move_left = {limitations={archive_open=false}},
-                move_right = {limitations={archive_open=false}}
-            },
-            handler = handle_item_button_click
-        },
-        {
-            name = "act_on_floor_product",
-            actions_table = {
-                copy = {shortcut="shift-right"},
-                put_into_cursor = {shortcut="alt-right"},
-                factoriopedia = {shortcut="alt-left"}
-            },
-            handler = handle_item_button_click
-        },
-        {
-            name = "act_on_floor_byproduct",
-            actions_table = {
-                add_recipe = {shortcut="left", limitations={archive_open=false}, show=true},
-                copy = {shortcut="shift-right"},
-                put_into_cursor = {shortcut="alt-right"},
-                factoriopedia = {shortcut="alt-left"}
-            },
-            handler = handle_item_button_click
-        },
-        {
-            name = "act_on_floor_ingredient",
-            actions_table = {
-                add_recipe = {shortcut="left", limitations={archive_open=false}, show=true},
-                copy = {shortcut="shift-right"},
-                put_into_cursor = {shortcut="alt-right"},
-                factoriopedia = {shortcut="alt-left"}
-            },
-            handler = handle_item_button_click
-        },
-        {
-            name = "act_on_floor_special",
-            actions_table = {
-                add_recipe = {shortcut="left", limitations={archive_open=false}, show=true}
+                paste = {shortcut="shift-left", show=is_top_level_product, enable=lib.actions.can_edit_factory},
+                cut = {shortcut="control-right", show=is_top_level_product, enable=lib.actions.can_edit_factory},
+                pipette = {input="pipette", enable=lib.actions.can_pipette},
+                put_into_combinator = {input="put_into_combinator", enable=lib.actions.can_put_into_combinator},
+                factoriopedia = {shortcut="alt-left", enable=lib.actions.can_open_factoriopedia}
             },
             handler = handle_item_button_click
         },

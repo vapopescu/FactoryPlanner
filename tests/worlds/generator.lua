@@ -11,6 +11,8 @@ return {
     cases = {
         testGeneratorPrototypes = require("cases.generator-prototypes"),
         testBoilerPrototypes = require("cases.boiler-prototypes"),
-        testFluidEnergyPrototypes = require("cases.fluid-energy-prototypes")
+        testFluidEnergyPrototypes = require("cases.fluid-energy-prototypes"),
+        testResearchPrototypes = require("cases.research-prototypes"),
+        testQualityBaselines = require("cases.quality-baselines")
     }
 }
