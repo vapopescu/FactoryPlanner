@@ -48,8 +48,7 @@ function matrix_engine.get_simple_items(item_set)
     for item_key, _ in pairs(item_set) do
         local item = structures.unpack_item(item_key)
         local item_proto = prototyper.util.find("items", item.name, item.type)  ---@as FPItemPrototype
-        local quality_proto = item.quality and prototyper.util.find("qualities", item.quality)  ---@as FPQualityPrototype?
-        table.insert(item_protos, SimpleItem.init(nil, item_proto, quality_proto))
+        table.insert(item_protos, SimpleItem.init(nil, item_proto))
     end
     return item_protos
 end
