@@ -23,4 +23,4 @@ end
 table.sort(cases)
 
 local suffix = (#configurations > 1) and (" [" .. selected_name .. "]") or ""
-return {name=selected_name, suffix=suffix, cases=selected.cases, names=cases, configurations=configurations}
+return {name=selected_name, suffix=suffix, cases=selected.cases, setup=selected.setup or {}, names=cases, configurations=configurations}

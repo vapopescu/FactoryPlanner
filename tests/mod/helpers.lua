@@ -12,6 +12,16 @@ function helpers.collector()
         check = function(condition, message)
             if not condition then table.insert(failures, message) end
         end,
+        equal = function(actual, expected, label)
+            if actual ~= expected then
+                failures[#failures + 1] = label .. ": expected " .. tostring(expected) .. ", got " .. tostring(actual)
+            end
+        end,
+        close = function(actual, expected, label)
+            if not helpers.approx(actual, expected) then
+                failures[#failures + 1] = label .. ": expected " .. tostring(expected) .. ", got " .. tostring(actual)
+            end
+        end,
         done = function()
             if #failures > 0 then
                 error(string.format("%d checks failed:\n    ", #failures)
@@ -67,6 +77,51 @@ function helpers.check_machine(c, name, expected)
     end
 
     return proto
+end
+
+-- GUI lookup and event dispatch
+do
+    local gui = {}
+
+    function gui.find(root, tags)
+        local found
+        local function visit(element)
+            local matches = true
+            for key, value in pairs(tags) do
+                if element.tags[key] ~= value then matches = false; break end
+            end
+            if matches then
+                assert(not found, "Ambiguous GUI element: " .. serpent.line(tags))
+                found = element
+            end
+            for _, child in pairs(element.children) do visit(child) end
+        end
+        visit(root)
+        return found
+    end
+
+    function gui.require(root, tags)
+        local element = gui.find(root, tags)
+        assert(element, "Missing GUI element: " .. serpent.line(tags))
+        return element
+    end
+
+    function gui.dispatch(player, element, event_name, overrides)
+        assert(element and element.valid, "Cannot dispatch to a missing GUI element")
+        local event = {name=event_name, tick=game.tick, player_index=player.index, element=element,
+            button=defines.mouse_button_type.left, control=false, alt=false, shift=false,
+            cursor_display_location={x=0, y=0}}
+        for key, value in pairs(overrides or {}) do event[key] = value end
+        lib.globals.ui_state(player).last_action = nil
+        local handler = assert(script.get_event_handler(event_name), "Missing GUI event handler")
+        handler(event)
+    end
+
+    function gui.click(player, element, overrides)
+        gui.dispatch(player, element, defines.events.on_gui_click, overrides)
+    end
+
+    helpers.gui = gui
 end
 
 return helpers

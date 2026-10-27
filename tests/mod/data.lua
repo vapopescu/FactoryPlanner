@@ -8,22 +8,17 @@ local configuration = require("configuration")
 for _, entry in ipairs(configuration.configurations) do log("FPTEST_CONFIGURATION " .. entry.name) end
 log("FPTEST_SELECTED " .. configuration.name)
 
--- Runs data stage setup code for each test case that has any; only failures
--- are worth reporting here, success just means the checks get to run
+-- Configuration setup is independent of the runtime case filter
 local lines = {}
-for _, name in ipairs(configuration.names) do
-    local case = configuration.cases[name]
-    if case.setup then
-        local ok, error = xpcall(case.setup, debug.traceback)
-        if not ok then
-            table.insert(lines, "  ✗ setup " .. name .. configuration.suffix .. ": "
-                .. tostring(error):gsub("\n", "\n    "))
-        end
+for index, setup in ipairs(configuration.setup) do
+    local ok, error = xpcall(setup, debug.traceback)
+    if not ok then
+        table.insert(lines, "  ✗ setup " .. index .. configuration.suffix .. ": "
+            .. tostring(error):gsub("\n", "\n    "))
     end
 end
 
 if #lines > 0 then
-    -- run.sh lifts everything between these markers out of the game log for display
     log("FPTEST_REPORT\n" .. table.concat(lines, "\n") .. "\nFPTEST_REPORT_END")
     error("FPTEST_SETUP_FAILED")
 end
