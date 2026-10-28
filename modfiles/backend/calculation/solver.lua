@@ -426,7 +426,13 @@ local function generate_floor_data(player, factory, floor, machine_requirements)
 
     for _, item_weight in ipairs(floor.simplex_item_weights) do
         ---@cast item_weight.proto FPItemPrototype
-        floor_data.simplex_item_weights[structures.pack_item(item_weight.proto)] = item_weight.weight
+        local item = {
+            name = item_weight.proto.name,
+            type = item_weight.proto.type,
+            quality = item_weight.quality_proto and item_weight.quality_proto.name,
+            amount = 0
+        }  ---@as SolverItem
+        floor_data.simplex_item_weights[structures.pack_item(item)] = item_weight.weight
     end
 
     for line in floor:iterator() do

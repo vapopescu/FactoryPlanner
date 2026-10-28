@@ -221,7 +221,7 @@ end
 local function handle_item_click(player, tags, action)
     local line = OBJECT_INDEX[tags.line_id]  ---@as LineObject
     local item_list = (tags.flags.catalyst) and line--[[@as Line]].recipe.catalysts or line
-    local item = item_list[tags.item_category .. "s"][tags.item_index]
+    local item = item_list[tags.item_category .. "s"][tags.item_index]   ---@type SimpleItem
     local amount
     if tags.flags.catalyst then
         amount = item.amount * line--[[@as Line]].production_ratio
@@ -265,9 +265,9 @@ local function handle_item_click(player, tags, action)
         local proto = item.proto
         if proto.type == "fluid" and tags.item_category == "ingredient" and line.class == "Line" then
             local name = line--[[@as Line]].recipe:get_name_with_temperature(proto)
-            proto = prototyper.util.find("items", name, "fluid")
+            proto = prototyper.util.find("items", name, "fluid")  ---@as FPItemPrototype
         end
-        solver_bar.add_item_weight(player, proto)
+        solver_bar.add_item_weight(player, proto, item.quality_proto)
 
     elseif action == "edit_temperature" then  ---@cast line Line
         lib.gui.open_dialog(player, {dialog="item", modal_data={recipe_id=line.recipe.id,
@@ -322,7 +322,7 @@ local function handle_fuel_click(player, tags, action)
 
     elseif action == "adjust_weight" then
         local proto = prototyper.util.find("items", fuel:get_name_with_temperature(), fuel.proto.type)
-        solver_bar.add_item_weight(player, proto--[[@as FPItemPrototype]])
+        solver_bar.add_item_weight(player, proto--[[@as FPItemPrototype]], fuel.quality_proto--[[@as FPQualityPrototype]])
 
     elseif action == "edit_temperature" then
         lib.gui.open_dialog(player, {dialog="item", modal_data={fuel_id=fuel.id,

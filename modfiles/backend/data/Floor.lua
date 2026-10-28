@@ -7,6 +7,7 @@ local SimpleItem = require("backend.data.SimpleItem")
 
 ---@class ItemWeight
 ---@field proto FPItemPrototype | FPPackedPrototype
+---@field quality_proto (FPQualityPrototype | FPPackedPrototype)?
 ---@field weight integer
 
 ---@class Floor: Object, ObjectMethods
@@ -297,6 +298,7 @@ end
 
 ---@class PackedItemWeight
 ---@field proto FPPackedPrototype
+---@field quality_proto FPPackedPrototype?
 ---@field weight integer
 
 ---@class PackedFloor: PackedObject
@@ -317,6 +319,8 @@ function Floor:pack(full)
         table.insert(weights, {
             proto = entry.proto.simplified and entry.proto--[[@as FPPackedPrototype]]
                 or prototyper.util.simplify_prototype(entry.proto, "type"),
+            quality_proto = entry.quality_proto and (entry.quality_proto.simplified and entry.quality_proto--[[@as FPPackedPrototype]]
+                or prototyper.util.simplify_prototype(entry.quality_proto)) or nil,
             weight = entry.weight
         })
     end
@@ -373,6 +377,8 @@ function Floor:validate(player)
     for _, entry in ipairs(self.simplex_item_weights) do
         entry.proto = prototyper.util.validate_prototype_object(entry.proto, "type")  ---@as FPItemPrototype | FPPackedPrototype
         self.valid = (not entry.proto.simplified) and self.valid
+        entry.quality_proto = entry.quality_proto and prototyper.util.validate_prototype_object(entry.quality_proto) or nil  ---@as (FPQualityPrototype | FPPackedPrototype)?
+        self.valid = self.valid and not (entry.quality_proto and entry.quality_proto.simplified)
     end
 
     return self.valid
@@ -391,7 +397,10 @@ function Floor:repair(player)
 
     local weights = self.simplex_item_weights
     for index = #weights, 1, -1 do
-        if weights[index].proto.simplified then table.remove(weights, index) end
+        if weights[index].proto.simplified or
+                (weights[index].quality_proto and weights[index].quality_proto.simplified) then
+            table.remove(weights, index)
+        end
     end
 
     if pivot then self:_repair(player, pivot) end

@@ -5,14 +5,20 @@ local ITEM_WEIGHT_LIMIT = 5
 
 ---@param player LuaPlayer
 ---@param proto FPItemPrototype
-function solver_bar.add_item_weight(player, proto)
+---@param quality_proto FPQualityPrototype?
+function solver_bar.add_item_weight(player, proto, quality_proto)
     local floor = lib.context.get(player, "Floor")  ---@as Floor
     local weights = floor.simplex_item_weights
 
     for _, entry in ipairs(weights) do
-        if entry.proto.type == proto.type and entry.proto.name == proto.name then return end
+        local entry_quality = entry.quality_proto and entry.quality_proto.name or "normal"
+        local item_quality = quality_proto and quality_proto.name or "normal"
+        if entry.proto.type == proto.type and entry.proto.name == proto.name
+                and entry_quality == item_quality then
+            return
+        end
     end
-    table.insert(weights, {proto=proto, weight=0})
+    table.insert(weights, {proto=proto, quality_proto=quality_proto, weight=0})
     lib.gui.run_refresh(player, "solver_bar")
 end
 
@@ -104,7 +110,8 @@ local function refresh_solver_bar(player)
             }
             local tags = {mod="fp", on_gui_click="change_item_weight", item_index=index,
                 on_gui_hover="set_tooltip", context="solver_bar", flags=flags}
-            local button = flow.add{type="sprite-button", sprite=proto.sprite, caption=caption,
+            local quality = entry.quality_proto and entry.quality_proto.name
+            local button = flow.add{type="sprite-button", sprite=proto.sprite, quality=quality, caption=caption,
                 style="fp_sprite-button_item_weight", mouse_button_filter={"left-and-right"},
                 raise_hover_events=true, tags=tags}
             ui_state.tooltips.solver_bar[button.index] = {"fp.item_weight_tt", proto.localised_name, caption}

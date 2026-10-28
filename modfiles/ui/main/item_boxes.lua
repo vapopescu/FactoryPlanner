@@ -295,7 +295,8 @@ local function handle_item_button_click(player, tags, action)
         lib.gui.run_refresh(player, "production")
 
     elseif action == "adjust_weight" then
-        solver_bar.add_item_weight(player, item.proto--[[@as FPItemPrototype]])
+        solver_bar.add_item_weight(player, item.proto--[[@as FPItemPrototype]],
+            item.quality_proto--[[@as FPQualityPrototype]])
 
     elseif action == "edit" then
         lib.gui.open_dialog(player, {dialog="picker",
