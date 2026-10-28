@@ -7,7 +7,7 @@ local migration = {}
 function migration.player_table(player_table)
     local function migrate_floor(floor)
         for i, item_proto in ipairs(floor.gaussian_free_items) do
-            --- Avoid constructor to mitigate breaking dependencies
+            --- Avoid constructor to mitigate breaking migrations
             local simple_item = {
                 class = "SimpleItem",
                 proto = item_proto,

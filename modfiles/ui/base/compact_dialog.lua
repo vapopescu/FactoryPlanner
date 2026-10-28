@@ -172,8 +172,8 @@ local function add_recipe_button(parent_flow, line, relevant_line, metadata)
     ---@field flags GUIActionFlags
     local tags = {mod="fp", on_gui_click="act_on_compact_recipe", line_id=line.id, on_gui_hover="set_tooltip",
         context="compact_dialog", flags=flags}
-    local button = parent_flow.add{type="sprite-button", tags=tags, sprite=recipe_proto.sprite, style=style,
-        quality=quality, mouse_button_filter={"left-and-right"}, raise_hover_events=true}
+    local button = parent_flow.add{type="sprite-button", tags=tags, sprite=recipe_proto.sprite,
+        quality=quality, style=style, mouse_button_filter={"left-and-right"}, raise_hover_events=true}
     metadata.tooltips[button.index] = tooltip
 end
 
@@ -437,9 +437,9 @@ local function add_item_flow(line, relevant_line, item_category, metadata)
         ---@field flags GUIActionFlags
         local tags = {mod="fp", on_gui_click="act_on_compact_item", fuel_id=fuel.id, context="compact_dialog", flags=flags}
 
-        local button = item_table.add{type="sprite-button", tags=tags, sprite=fuel_proto.sprite, quality=quality,
-            style=style, number=amount, secondary_number=secondary_amount, mouse_button_filter={"left-and-right"},
-            raise_hover_events=true, index=first_special_index}
+        local button = item_table.add{type="sprite-button", tags=tags, sprite=fuel_proto.sprite,
+            quality=quality, style=style, number=amount, secondary_number=secondary_amount,
+            mouse_button_filter={"left-and-right"}, raise_hover_events=true, index=first_special_index}
         metadata.tooltips[button.index] = tooltip
 
         item_highlights.register(metadata.player, button, fuel.proto--[[@as FPFuelPrototype]], fuel:get_name_with_temperature())

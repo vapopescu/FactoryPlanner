@@ -14,8 +14,9 @@ script.register_metatable("Fuel", Fuel)
 
 ---@param parent Machine?
 ---@param proto (FPFuelPrototype | FPPackedPrototype)?
+---@param quality_proto FPQualityPrototype?
 ---@return Fuel
-local function init(parent, proto)
+local function init(parent, proto, quality_proto)
     local this_proto = proto or {
         name = "",
         category = "",
@@ -24,6 +25,7 @@ local function init(parent, proto)
     }
     local object = Object.init({
         proto = this_proto,
+        quality_proto = quality_proto,
         temperature = nil,
 
         temperature_data = nil,

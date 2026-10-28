@@ -347,7 +347,7 @@ local function unpack(packed_self)
     end
     unpacked_self.first = Object.unpack(packed_self.lines, unpacker, unpacked_self)  ---@as LineObject
 
-    -- Free items will be automatically unpacked by the validation process
+    -- Gaussian free items will be automatically unpacked by the validation process
     unpacked_self.gaussian_free_items = packed_self.gaussian_free_items  ---@as SimpleItem[]
 
     for _, entry in ipairs(packed_self.simplex_item_weights) do

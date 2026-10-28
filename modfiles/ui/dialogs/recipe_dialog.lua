@@ -197,7 +197,7 @@ local function handle_recipe_click(player, tags, action)
         local double_click = (game.tick - (modal_data.select_tick or 0) < MAGIC_NUMBERS.double_click_delay)
         if not modal_elements.dialog_submit_button or double_click then
             if attempt_adding_line(player, tags.recipe_proto_id, modal_data) then
-                lib.gui.close_dialog(player, "cancel")
+                lib.gui.close_dialog(player, "submit")
             end
             return
         end
