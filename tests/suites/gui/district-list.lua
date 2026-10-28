@@ -1,12 +1,6 @@
 ---@diagnostic disable
 
-local function find_button(element, action, id_key, id)
-    if element.tags.on_gui_click == action and element.tags[id_key] == id then return element end
-    for _, child in pairs(element.children) do
-        local found = find_button(child, action, id_key, id)
-        if found then return found end
-    end
-end
+local gui = require("helpers").gui
 
 return {check=function(context)
     local player = game.players[1]
@@ -24,14 +18,11 @@ return {check=function(context)
     local ui_state = lib.globals.ui_state(player)
 
     local function button(action, id_key, id)
-        return find_button(ui_state.main_elements.main_frame, action, id_key, id)
+        return gui.find(ui_state.main_elements.main_frame, {["on_gui_click"]=action, [id_key]=id})
     end
     local function click(action, id_key, id)
         local element = assert(button(action, id_key, id), "Missing button: " .. action)
-        ui_state.last_action = nil
-        script.get_event_handler(defines.events.on_gui_click){name=defines.events.on_gui_click,
-            tick=game.tick, player_index=player.index, element=element,
-            button=defines.mouse_button_type.left, control=false, alt=false, shift=false}
+        gui.click(player, element)
     end
 
     -- Picking up and cancelling restores ordinary district navigation
