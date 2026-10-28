@@ -1,8 +1,12 @@
+local BADGE_SIZE = 24
+
+local shift_dist = (64 - BADGE_SIZE) / 2
 local badge = {
     filename = "__core__/graphics/icons/technology/effect-constant/effect-constant-mining.png",
     x = 32, y = 32,
     width = 32, height = 32,
-    shift = {16, -16}
+    scale = BADGE_SIZE / 32,
+    shift = {-shift_dist, shift_dist}
 }  ---@type data.Sprite
 
 ---@param resource data.ResourceEntityPrototype
