@@ -15,7 +15,7 @@ local function save_district_name(player, tags, _)
     district_elements.edit_flow.visible = false
     district_elements.name_flow.visible = true
 
-    lib.gui.run_refresh(player, "district_info")
+    lib.gui.run_refresh(player, "district_list")
 end
 
 ---@param player LuaPlayer
@@ -27,7 +27,7 @@ local function change_district_location(player, tags, event)
     district.location_proto = prototyper.util.find("locations", location_proto_id, nil)  ---@as FPLocationPrototype
 
     for factory in district:iterator() do
-        factory.top_floor:reset_surface_compatibility()
+        factory.top_floor:reset_location()
         solver.update(player, factory)
     end
     lib.gui.run_refresh(player, "all")
@@ -42,7 +42,7 @@ local function handle_item_button_click(player, tags, action)
 
     if action == "create_factory" then  -- only on net ingredients
         local factory = factory_list.add_factory(player, nil, item.proto)
-        local top_level_item = FactoryItem.init(item.proto)
+        local top_level_item = FactoryItem.init(item.proto, "product")
         top_level_item.definition = {type="amount", amount=item.abs_diff}
         factory:insert(top_level_item)
         solver.update(player, factory)
@@ -70,11 +70,14 @@ end
 ---@param parent LuaGuiElement
 ---@param district District
 local function build_items_flow(player, parent, district)
+    local padding, spacing = 12, 4
     local items_flow = parent.add{type="flow", direction="horizontal"}
-    items_flow.style.padding = {6, 12, 12, 12}
+    items_flow.style.padding = {6, padding, 12, padding}
+    items_flow.style.horizontal_spacing = spacing
 
-    local preferences = lib.globals.preferences(player)
-    local column_count = (preferences.products_per_row * 4) / 2
+    -- Fit two grids alongside the four pushers, accounting for padding and all five gaps
+    local available_width = main_dialog.get_content_width(player) - (2 * padding) - (5 * spacing)
+    local column_count = math.max(1, math.floor(available_width / (2 * MAGIC_NUMBERS.item_button_size)))
 
     ---@param category "product" | "ingredient
     ---@return LuaGuiElement
@@ -112,7 +115,8 @@ local function build_items_flow(player, parent, district)
             ingredient = (item.overall == "consumption"),
             special = special,
             cursor = (item.proto.type ~= "entity"),
-            ingredient_only = item.proto.ingredient_only,
+            can_produce = lib.availability.has_productive_recipe(item.proto, "produce"),
+            can_consume = lib.availability.has_productive_recipe(item.proto, "consume"),
             factoriopedia = (lib.get_factoriopedia_proto(item.proto) ~= nil)
         }
         ---@class HandleItemButtonClickTags
@@ -199,19 +203,6 @@ local function build_district_frame(player, district, location_items, held_distr
 
     move_button.style.size = {20, 28}
     move_button.style.left_margin = 2
-
-    local selected = lib.context.get(player, "District")--[[@as District]].id == district.id
-    local selection_caption = (selected) and {"fp.u_selected"} or {"fp.u_select"}
-
-    ---@class SelectDistrictTags
-    ---@field district_id ObjectID
-    local select_tags = {mod="fp", on_gui_click="select_district", district_id=district.id}
-    local select_button = subheader.add{type="button", tags=select_tags, caption=selection_caption,
-        style="list_box_item", enabled=(not selected), mouse_button_filter={"left"}}
-    select_button.style.font = "default-bold"
-    select_button.style.width = 72
-    select_button.style.padding = {0, 4}
-    select_button.style.horizontal_align = "center"
 
     -- Name
     subheader.add{type="label", caption={"", {"fp.name"}, ": "}, style="subheader_caption_label"}
@@ -355,6 +346,7 @@ listeners.gui = {
                 ui_state.held_object_id = nil  -- consume the held object
 
                 lib.gui.run_refresh(player, "districts_box")
+                lib.gui.run_refresh(player, "district_list")
             end
         },
         {
@@ -365,16 +357,6 @@ listeners.gui = {
                 ui_state.held_object_id = (tags.district_id ~= ui_state.held_object_id)
                     and tags.district_id or nil
                 lib.gui.run_refresh(player, "districts_box")
-            end
-        },
-        {
-            name = "select_district",
-            handler = function(player, tags, _)
-                ---@cast tags SelectDistrictTags
-                local selected_district = OBJECT_INDEX[tags.district_id]  ---@as District
-                lib.context.set(player, selected_district)
-                main_dialog.toggle_districts_view(player, false)
-                lib.gui.run_refresh(player, "all")
             end
         },
         {

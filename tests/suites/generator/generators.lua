@@ -73,7 +73,6 @@ return {
 
         data:extend{heat_fluid, spent_source_fluid, coolant_fluid, fuel_fluid, rich_fuel_fluid}
 
-
         -- ** RECIPES **
 
         -- Fluids only become fuel candidates when some recipe actually produces them, and heat
@@ -100,6 +99,12 @@ return {
             fluid_recipe("test-gen-fuel-rich", {type = "fluid", name = "test-gen-fuel-rich", amount = 10})
         }
 
+        -- Unsuffixed fluid ingredients make these fuels available independently of other fixtures
+        for _, name in ipairs{"test-gen-fuel", "test-gen-fuel-rich"} do
+            local recipe = fluid_recipe(name .. "-consume", {type="fluid", name="water", amount=10})
+            recipe.ingredients = {{type="fluid", name=name, amount=10}}
+            data:extend{recipe}
+        end
 
         -- ** GENERATORS **
 
@@ -223,7 +228,6 @@ return {
                 }
             })
         }
-
 
         -- ** BURNER GENERATOR **
 

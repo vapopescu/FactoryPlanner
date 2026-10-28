@@ -4,7 +4,8 @@
 ---@field proto FPItemPrototype
 ---@field quality_proto FPQualityPrototype?
 ---@field amount number
----@field satisfied_amount number?
+---@field target_amount number? Contribution to the containing floor's target
+---@field required_amount number? Floor production or consumption required by its parent
 ---@field parent LineObject?
 local SimpleItem = {}
 SimpleItem.__index = SimpleItem
@@ -22,11 +23,21 @@ local function init(parent, proto, quality_proto, amount)
         quality_proto = quality_proto,  -- can be nil
         class = "SimpleItem",
         amount = amount or 0,
-        satisfied_amount = nil,
+        target_amount = nil,
+        required_amount = nil,
         parent = parent  -- can be nil
     }  ---@type SimpleItem
     setmetatable(item, SimpleItem)
     return item
+end
+
+
+---@return number
+function SimpleItem:get_remaining_amount()
+    local target_amount = self.target_amount or 0
+    local tolerance = math.max(self.amount, target_amount) * MAGIC_NUMBERS.margin_of_error
+    local difference = self.amount - target_amount
+    return difference > tolerance and difference or 0
 end
 
 
@@ -74,6 +85,8 @@ end
 ---@field proto FPPackedPrototype
 ---@field quality_proto FPPackedPrototype?
 ---@field amount number
+---@field target_amount number?
+---@field required_amount number?
 
 ---@return PackedSimpleItem
 function SimpleItem:pack()
@@ -81,7 +94,9 @@ function SimpleItem:pack()
         class = self.class,
         proto = prototyper.util.simplify_prototype(self.proto, "type"),
         quality_proto = self.quality_proto and prototyper.util.simplify_prototype(self.quality_proto),
-        amount = self.amount
+        amount = self.amount,
+        target_amount = self.target_amount,
+        required_amount = self.required_amount,
     }
 end
 
@@ -96,7 +111,11 @@ local function unpack(packed_self)
     quality_proto = (quality_proto and not quality_proto.simplified) and quality_proto or nil
     ---@cast quality_proto FPQualityPrototype?
 
-    return valid and init(nil, item_proto, quality_proto, packed_self.amount) or nil
+    local unpacked_self = init(nil, item_proto, quality_proto, packed_self.amount)
+    unpacked_self.target_amount = packed_self.target_amount
+    unpacked_self.required_amount = packed_self.required_amount
+
+    return valid and unpacked_self or nil
 end
 
 -- Helper functions to pack up Floor or Line products, byproducts and ingredients

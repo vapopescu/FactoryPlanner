@@ -17,7 +17,6 @@ local SimpleItem = require("backend.data.SimpleItem")
 ---@field level integer
 ---@field first LineObject?
 ---@field products SimpleItem[]
----@field byproducts SimpleItem[]
 ---@field ingredients SimpleItem[]
 ---@field machine_amount integer
 ---@field solver SolverName
@@ -27,6 +26,7 @@ local SimpleItem = require("backend.data.SimpleItem")
 ---@field linear_dependence_data LinearDependanceData?
 ---@field simplex_item_weights ItemWeight[]
 ---@field simplex_basis_cache SimplexBasisCache?
+---@field current_location FPLocationPrototype?
 local Floor = Object.methods()
 Floor.__index = Floor
 script.register_metatable("Floor", Floor)
@@ -41,7 +41,6 @@ local function init(level, solver_name)
         first = nil,
 
         products = {},
-        byproducts = {},
         ingredients = {},
         machine_amount = 0,
 
@@ -49,6 +48,7 @@ local function init(level, solver_name)
         gaussian_free_items = {},
         simplex_item_weights = {},
         simplex_basis_cache = nil,
+        current_location = nil,  -- determined on demand
     }, "Floor", Floor)  ---@as Floor
     return object
 end
@@ -216,15 +216,23 @@ function Floor:refresh_lines(player)
     return changed
 end
 
-
-function Floor:reset_surface_compatibility()
+function Floor:reset_location()
+    self.current_location = nil
     for line in self:iterator() do
         if line.class == "Floor" then  ---@cast line Floor
-            line:reset_surface_compatibility()
-        else
-            line.surface_compatibility = nil
+            line:reset_location()
         end
     end
+end
+
+---@return FPLocationPrototype
+function Floor:get_current_location()
+    if not self.current_location then
+        local district = lib.get_ancestor(self, "District")  ---@as District
+        self.current_location = district.location_proto  ---@as FPLocationPrototype
+    end
+    ---@cast self.current_location -nil
+    return self.current_location
 end
 
 ---@alias FloorStatus "disabled" | "linearly_dependent" | "solver_error"
@@ -297,7 +305,6 @@ end
 ---@field lines PackedLineObject[]
 ---@field solver SolverName
 ---@field products PackedSimpleItem[]?
----@field byproducts PackedSimpleItem[]?
 ---@field ingredients PackedSimpleItem[]?
 ---@field gaussian_free_items PackedSimpleItem[]
 ---@field simplex_item_weights PackedItemWeight[]
@@ -321,7 +328,6 @@ function Floor:pack(full)
         lines = self:_pack(full),
 
         products = (full) and SimpleItem.pack_items(self.products) or nil,
-        byproducts = (full) and SimpleItem.pack_items(self.byproducts) or nil,
         ingredients = (full) and SimpleItem.pack_items(self.ingredients) or nil,
 
         gaussian_free_items = SimpleItem.pack_items(self.gaussian_free_items),
@@ -361,6 +367,8 @@ function Floor:validate(player)
     self.gaussian_free_items = SimpleItem.unpack_items(
         self.gaussian_free_items  ---@as PackedSimpleItem[]
     )
+
+    self.current_location = nil  -- reset cached value
 
     for _, entry in ipairs(self.simplex_item_weights) do
         entry.proto = prototyper.util.validate_prototype_object(entry.proto, "type")  ---@as FPItemPrototype | FPPackedPrototype

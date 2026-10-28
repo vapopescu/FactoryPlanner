@@ -27,6 +27,9 @@ local generator = {
 ---@field suffix string
 ---@field amounts table<string, uint>
 
+---@alias SurfaceConditionsMap table<string, SurfaceCondition[]>
+---@alias CompatibleLocationSet table<string, boolean>
+
 -- Data collected during recipe generation, reused by later stages of the same build
 ---@class GeneratorContext
 ---@field resource_deposits LuaEntityPrototype[]
@@ -36,6 +39,8 @@ local generator = {
 ---@field tile_can_have_plant table<string, string[]>
 ---@field research_sets table<string, ResearchSet>
 ---@field research_groups {group: ItemGroup, subgroup: ItemGroup}?
+---@field recipe_surface_conditions SurfaceConditionsMap
+---@field machine_surface_conditions SurfaceConditionsMap
 
 
 ---@class FPPrototype
@@ -96,7 +101,7 @@ end
 ---@field maximum_productivity IntegerEffectValue
 ---@field productivity_recipe string?
 ---@field type_counts { products: ItemTypeCounts, ingredients: ItemTypeCounts }
----@field surface_conditions SurfaceCondition[]?
+---@field compatible_locations CompatibleLocationSet
 ---@field recycling boolean
 ---@field barreling boolean
 ---@field can_set_quality boolean
@@ -128,7 +133,8 @@ function generator.recipes.generate(context)
             hidden = false,
             maximum_productivity = 2^53,
             emissions_multiplier = 1,
-            can_set_quality = false
+            compatible_locations = {},
+            can_set_quality = false,
         }  ---@type FPRecipePrototype
         generator.util.add_default_groups(recipe)
         return recipe
@@ -192,7 +198,7 @@ function generator.recipes.generate(context)
                 maximum_productivity = math.floor(proto.maximum_productivity
                     * MAGIC_NUMBERS.effect_precision + 1e-4),
                 productivity_recipe = (productivity_recipes[proto.name]) and proto.name or nil,
-                surface_conditions = proto.surface_conditions,
+                compatible_locations = {},
                 recycling = recycling_recipes[proto.name],
                 barreling = compacting_recipes[proto.name],
                 can_set_quality = proto.can_set_quality,
@@ -204,6 +210,8 @@ function generator.recipes.generate(context)
                 group = generator.util.generate_group_table(proto.group),
                 subgroup = generator.util.generate_group_table(proto.subgroup)
             }  ---@type FPRecipePrototype
+
+            context.recipe_surface_conditions[proto.name] = proto.surface_conditions
 
             generator.util.format_recipe(recipe, proto.products, proto.main_product, proto.ingredients)
             insert_prototype(recipes, recipe, nil)
@@ -316,15 +324,40 @@ function generator.recipes.generate(context)
             recipe.order = proto.order
             recipe.categories = {["agricultural-tower"] = true}
             recipe.energy = proto.growth_ticks--[[@cast -nil]] / 60
-            recipe.location_restricted = true
+            recipe.location_restricted = proto.autoplace_specification ~= nil or false
 
-            -- Add the plant prototype name to the list of tiles it can be planted on
             if proto.autoplace_specification then
+                local plantable_tiles = {}  ---@type table<string, true>
+
                 for _, tile_restriction in pairs(proto.autoplace_specification.tile_restriction or {}) do
                     if tile_restriction.first then
-                        context.tile_can_have_plant[tile_restriction.first] =
-                            context.tile_can_have_plant[tile_restriction.first] or {}
-                        table.insert(context.tile_can_have_plant[tile_restriction.first], proto.name)
+                        plantable_tiles[tile_restriction.first] = true
+                    end
+                end
+
+                -- Also consider the tiles on which the plantable tile can be placed on
+                for tile, _ in pairs(plantable_tiles) do
+                    local tile_proto = prototypes.tile[tile]
+                    for _, item in pairs(tile_proto.items_to_place_this or {}) do
+                        local item_proto = prototypes.item[item.name]
+                        local tile_condition = item_proto.place_as_tile_result and
+                            item_proto.place_as_tile_result.tile_condition or {}
+                        for _, tile_cond in pairs(tile_condition) do
+                            plantable_tiles[tile_cond.name] = true
+                        end
+
+                        -- Plant can be planted on an universal tile. Restrictions should not apply
+                        if #tile_condition == 0 then
+                            recipe.location_restricted = false
+                        end
+                    end
+                end
+
+                -- Add the plant prototype name to the list of tiles it can be planted on
+                if recipe.location_restricted then
+                    for tile, _ in pairs(plantable_tiles) do
+                        context.tile_can_have_plant[tile] = context.tile_can_have_plant[tile] or {}
+                        table.insert(context.tile_can_have_plant[tile], proto.name)
                     end
                 end
             end
@@ -649,7 +682,8 @@ function generator.recipes.generate(context)
 end
 
 ---@param recipes NamedPrototypes<FPRecipePrototype>
-function generator.recipes.second_pass(recipes)
+---@param context GeneratorContext
+function generator.recipes.second_pass(recipes, context)
     local machines = storage.prototypes.machines
     for _, recipe in pairs(recipes) do
         -- Check if recipes have a machine to produce them
@@ -658,6 +692,29 @@ function generator.recipes.second_pass(recipes)
         -- Give custom recipes a tooltip after items have been generated
         elseif recipe.custom then
             recipe.tooltip = generator.util.recipe_tooltip(recipe)
+        end
+    end
+
+    -- Build location compatibility data
+    for _, recipe in pairs(recipes) do
+        generator.util.compile_surface_conditions(recipe, context.recipe_surface_conditions[recipe.name])
+
+        if recipe.location_restricted then
+            local locations_with_resource = {}  ---@type table<string, true>
+            local count = 0
+            for _, location in pairs(storage.prototypes.locations) do
+                if not location.resource_recipes or location.resource_recipes[recipe.name] then
+                    locations_with_resource[location.name] = true
+                    count = count + 1
+                end
+            end
+
+            -- Only apply resource restricitions if it can be found on at least a surface other than "Universal"
+            if count > 1 then
+                for location_name, is_compatible in pairs(recipe.compatible_locations) do
+                    recipe.compatible_locations[location_name] = (is_compatible and locations_with_resource[location_name])
+                end
+            end
         end
     end
 end
@@ -671,7 +728,6 @@ end
 ---@field weight double?
 ---@field temperature float?
 ---@field base_name string?
----@field ingredient_only boolean
 ---@field order string
 ---@field group ItemGroup
 ---@field subgroup ItemGroup
@@ -682,8 +738,8 @@ end
 ---@alias RelevantItems table<ItemType, table<ItemName, ItemDetails>>
 
 ---@class ItemDetails
----@field ingredient_only boolean
 ---@field temperature float?
+---@field base_name string?
 
 ---@class CustomItemDetails
 ---@field name string
@@ -826,33 +882,17 @@ function generator.items.generate(context)
 
     local relevant_items = {item={}, fluid={}, entity={}}
     local fluid_has_temperature = {}
-    -- Extract items from recipes and note whether they are ever used as a product
+    -- Extract all items used by recipes
     for _, recipe_proto in pairs(recipe_prototypes) do
-        local ingredient_amounts = {}  ---@type table<string, number>
-        for _, ingredient in pairs(recipe_proto.ingredients) do
-            -- Recipe picker needs to deal with fluids, as their temperature needs configuration
-            if ingredient.type == "item" then
-                local amount = ingredient_amounts[ingredient.name] or 0
-                ingredient_amounts[ingredient.name] = amount + ingredient.amount
-            end
-        end
-
         for _, item_category in pairs({"products", "ingredients"}) do
             for _, item_data in pairs(recipe_proto[item_category]) do
                 local type_data = relevant_items[item_data.type]
 
                 if type_data[item_data.name] == nil then
                     type_data[item_data.name] = {
-                        ingredient_only = true,
                         temperature = item_data.temperature,
                         base_name = item_data.base_name
                     }
-                end
-
-                -- Make sure the recipe actually net-produces the item
-                local ingredient_amount = ingredient_amounts[item_data.name] or 0
-                if item_category == "products" and item_data.amount > ingredient_amount then
-                    type_data[item_data.name].ingredient_only = false
                 end
 
                 if item_data.type == "fluid" then
@@ -871,7 +911,6 @@ function generator.items.generate(context)
         if not exists then
             local temperature = prototypes.fluid[name].default_temperature
             relevant_items["fluid"][lib.temperature.name_with(name, temperature)] = {
-                ingredient_only = true,
                 temperature = temperature,
                 base_name = name
             }
@@ -890,16 +929,16 @@ function generator.items.generate(context)
             special = true
         }
         generator.util.add_default_groups(custom_items[item_name])
-        relevant_items["entity"][item_name] = {ingredient_only=true}
+        relevant_items["entity"][item_name] = {}
     end
 
     -- Electricity is normally produced by generators, add manually otherwise
     relevant_items["entity"]["custom-electric-power"] =
-        relevant_items["entity"]["custom-electric-power"] or {ingredient_only=true}
+        relevant_items["entity"]["custom-electric-power"] or {}
 
     -- No recipes use these (yet) so they need to be added manually
-    relevant_items["entity"]["custom-heat-power"] = {ingredient_only=true}
-    relevant_items["entity"]["custom-heating-power"] = {ingredient_only=true}
+    relevant_items["entity"]["custom-heat-power"] = {}
+    relevant_items["entity"]["custom-heating-power"] = {}
 
     for type, item_table in pairs(relevant_items) do
         for item_name, item_details in pairs(item_table) do
@@ -917,7 +956,6 @@ function generator.items.generate(context)
                 weight = (type == "item") and proto.weight or nil,
                 temperature = item_details.temperature,
                 base_name = item_details.base_name,
-                ingredient_only = item_details.ingredient_only,
                 order = proto.order,
                 group = generator.util.generate_group_table(proto.group--[[@cast -nil]]),
                 subgroup = generator.util.generate_group_table(proto.subgroup--[[@cast -nil]])
@@ -971,7 +1009,7 @@ end
 ---@field module_limit uint16
 ---@field quality_affects_module_slots boolean?
 ---@field module_slots_quality_bonus table<QualityID, uint16>
----@field surface_conditions SurfaceCondition[]
+---@field compatible_locations CompatibleLocationSet
 ---@field resource_drain_rate number?
 ---@field uses_quality_drain_modifier boolean?
 ---@field uses_force_mining_productivity_bonus boolean?
@@ -1164,6 +1202,8 @@ function generator.machines.generate(context)
             if fluid_burner_prototype.output_fluid_box then output_channels = output_channels - 1 end
         end
 
+        context.machine_surface_conditions[proto.name] = proto.surface_conditions
+
         return {
             name = proto.name,
             localised_name = proto.localised_name,
@@ -1192,7 +1232,7 @@ function generator.machines.generate(context)
             module_limit = generator.util.get_base_module_limit(proto),
             quality_affects_module_slots = proto.quality_affects_module_slots,  -- can be nil
             module_slots_quality_bonus = proto.module_slots_quality_bonus,
-            surface_conditions = proto.surface_conditions,
+            compatible_locations = {},
             uses_force_mining_productivity_bonus = proto.uses_force_mining_productivity_bonus,
             heating_energy = proto.heating_energy * 60
         }  ---@as FPMachinePrototype
@@ -1343,6 +1383,17 @@ function generator.machines.generate(context)
     generator.util.fill_categories(combined_list, machine_categories, machines, insert_prototype)
 
     return machines
+end
+
+---@param machine_categories IndexedPrototypesWithCategory<FPMachinePrototype>
+---@param context GeneratorContext
+function generator.machines.second_pass(machine_categories, context)
+    -- Build location compatibility data
+    for _, category in pairs(machine_categories) do
+        for _, machine in pairs(category.members) do
+            generator.util.compile_surface_conditions(machine, context.machine_surface_conditions[machine.name])
+        end
+    end
 end
 
 ---@param a FPMachinePrototype
@@ -1820,16 +1871,15 @@ local function generate_surface_properties()
     end
 
     for _, proto in pairs(prototypes.surface_property) do
-        if not proto.hidden then
-            table.insert(properties, {
-                name = proto.name,
-                order = proto.order,
-                localised_name = proto.localised_name,
-                localised_unit_key = proto.localised_unit_key,
-                default_value = proto.default_value,
-                is_time = proto.is_time
-            })
-        end
+        table.insert(properties, {
+            name = proto.name,
+            order = proto.order,
+            localised_name = proto.localised_name,
+            localised_unit_key = proto.localised_unit_key,
+            default_value = proto.default_value,
+            is_time = proto.is_time,
+            hidden = proto.hidden
+        })
     end
 
     table.sort(properties, property_sorting_function)
@@ -1865,19 +1915,24 @@ function generator.locations.generate(context)
         if not helpers.is_valid_sprite_path(sprite) then return nil end
 
         local surface_properties = {}
-        local tooltip = {"", {"fp.tt_title", proto.localised_name}, "\n"}  ---@type LocalisedString
-        local current_table, next_index = tooltip, 4
+        local tooltip = {""}  ---@type LocalisedString
+        local current_table, next_index = tooltip, 2
         local resource_recipes = {}  ---@type table<string, true>
+        local property_separator = ""
 
-        for _, property_proto in pairs(property_prototypes) do
+        for _, property_proto in ipairs(property_prototypes) do
             local value = proto.surface_properties[property_proto.name] or property_proto.default_value
             surface_properties[property_proto.name] = value
 
-            local value_and_unit = {property_proto.localised_unit_key, value}  ---@type LocalisedString
-            if property_proto.is_time then value_and_unit = lib.format.time(value) end
+            if not property_proto.hidden then
+                local value_and_unit = {property_proto.localised_unit_key, value}  ---@type LocalisedString
+                if property_proto.is_time then value_and_unit = lib.format.time(value) end
 
-            current_table, next_index = lib.format.build_localised_string(
-                {"fp.surface_property", property_proto.localised_name, value_and_unit}, current_table, next_index)
+                local property_tooltip = {"", property_separator,
+                    {"fp.surface_property", property_proto.localised_name, value_and_unit}}
+                current_table, next_index = lib.format.build_localised_string(property_tooltip, current_table, next_index)
+                property_separator = "\n"
+            end
         end
 
         if category == "space-location" and proto.map_gen_settings and proto.map_gen_settings.autoplace_settings then

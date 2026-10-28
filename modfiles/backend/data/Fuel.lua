@@ -8,7 +8,6 @@ local Object = require("backend.data.Object")
 ---@field temperature float?
 ---@field temperature_data TemperatureData
 ---@field amount number
----@field satisfied_amount number
 local Fuel = Object.methods()
 Fuel.__index = Fuel
 script.register_metatable("Fuel", Fuel)
@@ -30,7 +29,6 @@ local function init(parent, proto)
         temperature_data = nil,
 
         amount = 0,
-        satisfied_amount = 0,
 
         parent = parent  -- could be nil
     }, "Fuel", Fuel)  ---@as Fuel
