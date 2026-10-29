@@ -228,7 +228,7 @@ local function handle_item_add(player, tags, event)
     local factory = lib.context.get(player, "Factory")  ---@as Factory
 
     if event.shift then  -- paste
-        local dummy_product = FactoryItem.init(nil, tags.item_category)
+        local dummy_product = FactoryItem.init(tags.item_category)
         lib.clipboard.dummy_paste(player, dummy_product, factory)
     elseif tags.item_category == "product" and player.is_cursor_blueprint() then  -- import blueprint entities
         local blueprint = player.cursor_record or player.cursor_stack
@@ -236,7 +236,8 @@ local function handle_item_add(player, tags, event)
 
         for _, entity in pairs(blueprint--[[@cast -nil]].cost_to_build) do
             local proto = prototyper.util.find("items", entity.name, "item")  ---@as FPItemPrototype
-            local existing_item = factory:find({proto=proto})
+            local quality_proto = prototyper.util.find("qualities", entity.quality)  ---@as FPQualityPrototype
+            local existing_item = factory:find({proto=proto, quality_proto=quality_proto})
 
             local amount = entity.count / timescale
             if existing_item then
@@ -244,7 +245,7 @@ local function handle_item_add(player, tags, event)
                     existing_item:add_defined_amount(amount)
                 end
             else
-                local product = FactoryItem.init(proto, tags.item_category)  -- definition.type = "amount"
+                local product = FactoryItem.init(tags.item_category, proto, quality_proto)  -- definition.type = "amount"
                 product.definition = {type="amount", amount=amount}
                 factory:insert(product)
             end
@@ -286,7 +287,7 @@ local function handle_item_button_click(player, tags, action)
 
     elseif action == "convert_to_target" then
         local factory = lib.context.get(player, "Factory")  ---@as Factory
-        local target = FactoryItem.init(item.proto, tags.item_category)
+        local target = FactoryItem.init(tags.item_category, item.proto, item.quality_proto)
         target.definition = {type="amount", amount=amount}
         factory:insert(target)
 

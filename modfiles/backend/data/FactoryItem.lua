@@ -32,10 +32,11 @@ local FactoryItem = Object.methods()
 FactoryItem.__index = FactoryItem
 script.register_metatable("FactoryItem", FactoryItem)
 
----@param proto (FPItemPrototype | FPPackedPrototype)?
 ---@param category ItemCategory
+---@param proto (FPItemPrototype | FPPackedPrototype)?
+---@param quality_proto (FPQualityPrototype | FPPackedPrototype)?
 ---@return FactoryItem
-local function init(proto, category)
+local function init(category, proto, quality_proto)
     local this_proto = proto or {
         name = "",
         category = "",
@@ -44,6 +45,7 @@ local function init(proto, category)
     }
     local object = Object.init({
         proto = this_proto,
+        quality_proto = quality_proto,
         category = category,
         definition = {type="amount", amount=0},
         active = true,
@@ -119,7 +121,7 @@ function FactoryItem:paste(object)
             item = object
         else
             local source = object  ---@as SimpleItem | Fuel
-            item = init(proto, self.category)  -- definition.type = "amount"
+            item = init(self.category, proto, source.quality_proto)  -- definition.type = "amount"
             item.definition = {type="amount", amount=source.amount}
         end
         item.category = self.category
@@ -164,8 +166,8 @@ end
 ---@return FactoryItem item
 local function unpack(packed_self)
     -- Prototypes are unpacked at validate
-    local unpacked_self = init(packed_self.proto, packed_self.category)
-    unpacked_self.quality_proto = packed_self.quality_proto
+    local unpacked_self = init(packed_self.category,
+        packed_self.proto, packed_self.quality_proto)
 
     unpacked_self.definition = lib.flib.deep_copy(packed_self.definition)
     unpacked_self.active = packed_self.active

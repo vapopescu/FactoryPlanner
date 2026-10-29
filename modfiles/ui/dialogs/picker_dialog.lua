@@ -649,9 +649,9 @@ local function close_picker_dialog(player, action)
             modal_data.item.active = modal_data.modal_elements.active_button.toggled
         else
             local item_proto = modal_data.item_proto
-            local top_level_item = FactoryItem.init(item_proto, modal_data.item_category)
+            local top_level_item = FactoryItem.init(modal_data.item_category,
+                item_proto, modal_data.quality_proto)
             top_level_item.definition = definition
-            top_level_item.quality_proto = modal_data.quality_proto
 
             if modal_data.create_factory then  -- if this flag is set, create a factory to put the item into
                 factory = factory_list.add_factory(player, nil, item_proto)
