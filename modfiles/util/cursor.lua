@@ -420,14 +420,16 @@ end
 
 ---@param player LuaPlayer
 ---@return LuaItemPrototype?
+---@return LuaQualityPrototype?
 function _cursor.parse_cursor_item(player)
     if player.is_cursor_empty() then return nil end
     local cursor = player.cursor_stack  ---@cast cursor -nil
 
     local valid_for_read, cursor_ghost = cursor.valid_for_read, player.cursor_ghost  ---@as ItemIDAndQualityIDPair
     local prototype = (valid_for_read) and cursor.prototype or cursor_ghost.name  ---@as LuaItemPrototype
+    local quality = valid_for_read and cursor.quality or cursor_ghost.quality  ---@as LuaQualityPrototype
 
-    return prototype
+    return prototype, quality
 end
 
 ---@alias CursorEntityType "none" | "blueprint" | "entity"

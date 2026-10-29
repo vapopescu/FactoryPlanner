@@ -35,9 +35,10 @@ function quality_selector.refresh_element(modal_data)
     if not QUALITY_ENABLED then return end
 
     local buttons = modal_data.modal_elements.quality_buttons  ---@type table<string, LuaGuiElement>
+    local blacklist = modal_data.quality_blacklist or {}  ---@as table<string, true>
     local enabled = true
 
-    if modal_data.item_proto and modal_data.item_proto.type ~= "item" 
+    if modal_data.item_proto and modal_data.item_proto.type ~= "item"
             or modal_data.recipe_proto and not modal_data.recipe_proto.can_set_quality then
         modal_data.quality_proto = nil
         enabled = false
@@ -45,8 +46,9 @@ function quality_selector.refresh_element(modal_data)
         modal_data.quality_proto = defaults.get_fallback("qualities").proto  ---@as FPQualityPrototype
     end
 
-    for _, button in pairs(buttons) do
-        button.enabled = enabled
+    if modal_data.quality_proto and blacklist[modal_data.quality_proto.name] then modal_data.quality_proto = nil end
+    for quality, button in pairs(buttons) do
+        button.enabled = enabled and not blacklist[quality]
         button.toggled = false
     end
 
@@ -66,6 +68,7 @@ local function handle_select_quality(player, tags, _)
     local modal_data = lib.globals.modal_data(player)  ---@as QualitySelectorModalData
     modal_data.quality_proto = prototyper.util.find("qualities", tags.proto_name)
     quality_selector.refresh_element(modal_data)
+    if modal_data.quality_callback then modal_data.quality_callback() end
 end
 
 

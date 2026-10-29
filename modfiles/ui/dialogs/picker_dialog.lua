@@ -14,6 +14,8 @@ local GROUP_MAX_ROWS = 3
 ---@field item_proto FPItemPrototype?
 ---@field belt_proto FPBeltPrototype?
 ---@field quality_proto FPQualityPrototype?
+---@field quality_blacklist table<string, true>
+---@field quality_callback fun()
 ---@field belt_stack integer
 ---@field selected_group_id integer?
 
@@ -115,12 +117,11 @@ local function add_item_picker(parent_flow, player, selected_group_name)
     local group_id_cache, group_flow_cache, subgroup_table_cache = {}, {}, {}
     modal_elements.groups = {}
 
-    -- TODO: allow the same product with different qualities
-    local existing_items = {}  ---@type table<FPItemPrototype, ItemCategory>
+    local existing_items = {}  ---@type table<SolverItemKey, ItemCategory>
     if not modal_data.create_factory then  -- check if this is for a new factory or not
         local factory = lib.context.get(player, "Factory")  ---@as Factory
         for item in factory:iterator() do
-            existing_items[item.proto] = item.category
+            existing_items[solver.util.pack_item(item)] = item.category
         end
     end
 
@@ -199,15 +200,25 @@ local function add_item_picker(parent_flow, player, selected_group_name)
         current_items_in_table_count = current_items_in_table_count + 1
 
         local item_name = item_proto.name
-        local existing_category = existing_items[item_proto]
+        local quality = modal_data.quality_proto and modal_data.quality_proto.name
+        local item = {name=item_name, type=item_proto.type, quality=quality, amount=0}  ---@type SolverItem
+        local existing_category = existing_items[solver.util.pack_item(item)]
+        local existing_quality = {}  ---@type table<string, true>
+
+        for _, quality_proto in ipairs(storage.prototypes.qualities) do
+            item.quality = quality_proto.name
+            existing_quality[quality_proto.name] = existing_items[solver.util.pack_item(item)] ~= nil or nil
+        end
+
         local name = (item_proto.temperature) and item_proto.base_name or item_name
         local elem_tooltip = (item_proto.type ~= "entity") and {type=item_proto.type, name=name} or nil
         local unlocked = lib.availability.is_item_unlocked(force, item_proto, modal_data.item_category, unlock_cache)
         local button_style = "fflib_slot_button_default"
         local status_tooltip = nil  ---@type LocalisedString?
-        if existing_category then
+        local enabled = not existing_category or QUALITY_ENABLED
+        if existing_category or next(existing_quality) then
             button_style = "fflib_slot_button_blue"
-            status_tooltip = {"fp.picker_already_selected_" .. existing_category}
+            status_tooltip = existing_category and {"fp.picker_already_selected_" .. existing_category}
         elseif not unlocked then
             button_style = "fflib_slot_button_red"
             status_tooltip = {"fp.picker_unresearched_tt"}
@@ -221,12 +232,13 @@ local function add_item_picker(parent_flow, player, selected_group_name)
         ---@class SelectPickerItemTags: Tags
         ---@field item_id integer
         ---@field category_id integer
+        ---@field quality string?
         ---@field enabled boolean
         ---@field existing_category ItemCategory?
-        local tags = {mod="fp", on_gui_click="select_picker_item", item_id=item_proto.id,
-            category_id=item_proto.category_id, enabled=(existing_category == nil), existing_category=existing_category,
-            flags={cursor=(item_proto.type ~= "entity"),
-                factoriopedia=(lib.get_factoriopedia_proto(item_proto) ~= nil)}}
+        ---@field existing_quality table<string, true>
+        local tags = {mod="fp", on_gui_click="select_picker_item", item_id=item_proto.id, category_id=item_proto.category_id,
+            quality=quality, enabled=enabled, existing_category=existing_category, existing_quality=existing_quality,
+            flags={cursor=(item_proto.type ~= "entity"), factoriopedia=(lib.get_factoriopedia_proto(item_proto) ~= nil)}}
         local button_item = table_subgroup.add{type="sprite-button", tags=tags, sprite=item_proto.sprite,
             style=button_style, elem_tooltip=elem_tooltip, mouse_button_filter={"left"}}
         button_item.tooltip = tooltip
@@ -362,14 +374,16 @@ local function set_item_proto(modal_data, item_proto)
     if not is_item then set_belt_proto(modal_data, nil) end
 end
 
----@param modal_elements table
-local function update_dialog_submit_button(modal_elements)
-    local item_choice_button = modal_elements.item_choice_button
+---@param modal_data PickerDialogModalData
+local function update_dialog_submit_button(modal_data)
+    local modal_elements = modal_data.modal_elements
     local item_amount = lib.gui.parse_expression_field(modal_elements.item_amount_textfield, true)
 
     local message  ---@type LocalisedString
-    if item_choice_button.sprite == "" then
+    if not modal_data.item_proto then
         message = {"fp.picker_issue_select_item"}
+    elseif modal_elements.quality_buttons and modal_data.item_proto.type == "item" and not modal_data.quality_proto then
+        message = {"fp.picker_issue_select_quality"}
     elseif modal_elements.machine_count_checkbox.state then
         local machine_count = lib.gui.parse_expression_field(modal_elements.machine_count_textfield, true)
         if machine_count == nil then message = {"fp.picker_issue_enter_machine_count"} end
@@ -486,7 +500,7 @@ local function add_item_pane(parent_flow, modal_data, item)
 
     if (item) then set_appropriate_focus(modal_data)
     else modal_elements.search_textfield.focus() end
-    update_dialog_submit_button(modal_elements)
+    update_dialog_submit_button(modal_data)
 end
 
 
@@ -496,7 +510,7 @@ local function handle_item_pick(player, tags, _)
     local modal_data = lib.globals.modal_data(player)  ---@as PickerDialogModalData
     local item_proto = prototyper.util.find("items", tags.item_id, tags.category_id)  ---@as FPItemPrototype
 
-    if not tags.enabled then
+    if tags.existing_category and not QUALITY_ENABLED then
         lib.cursor.create_flying_text(player, {"fp.item_already_defined_" .. tags.existing_category})
         return
    end
@@ -504,9 +518,12 @@ local function handle_item_pick(player, tags, _)
     set_item_proto(modal_data, item_proto)  -- no need for sync in this case
     refresh_definition_controls(modal_data)
 
+    modal_data.quality_proto = prototyper.util.find("qualities", tags.quality)
+    modal_data.quality_blacklist = tags.existing_quality
+
     set_appropriate_focus(modal_data)
     quality_selector.refresh_element(modal_data)
-    update_dialog_submit_button(modal_data.modal_elements)
+    update_dialog_submit_button(modal_data)
 end
 
 ---@param player LuaPlayer
@@ -520,7 +537,7 @@ local function handle_belt_pick(player, _, event)
     refresh_definition_controls(modal_data)
 
     set_appropriate_focus(modal_data)
-    update_dialog_submit_button(modal_data.modal_elements)
+    update_dialog_submit_button(modal_data)
 end
 
 ---@param player LuaPlayer
@@ -542,6 +559,7 @@ local function open_picker_dialog(player, modal_data)
     modal_data.timescale = preferences.timescale
     modal_data.belts_or_lanes = preferences.belts_or_lanes
     modal_data.belt_stack = preferences.belt_stack
+    modal_data.quality_callback = function() update_dialog_submit_button(modal_data) end  -- it's not pretty, but it works
 
     if modal_data.item_id then
         modal_data.item = OBJECT_INDEX[modal_data.item_id]  ---@as FactoryItem
@@ -677,7 +695,7 @@ listeners.gui = {
                 if item_proto and not lib.availability.can_define_factory_item(item_proto, category) then
                     set_item_proto(modal_data, nil)
                     refresh_definition_controls(modal_data)
-                    update_dialog_submit_button(modal_elements)
+                    update_dialog_submit_button(modal_data)
                 end
 
                 local selected_group = modal_elements.groups[modal_data.selected_group_id]
@@ -708,7 +726,7 @@ listeners.gui = {
 
                 refresh_definition_controls(modal_data)
                 set_appropriate_focus(modal_data)
-                update_dialog_submit_button(modal_data.modal_elements)
+                update_dialog_submit_button(modal_data)
             end
         }
     },
@@ -743,10 +761,11 @@ listeners.gui = {
                     return
                 end
 
-                local cursor_item = lib.cursor.parse_cursor_item(player)
+                local cursor_item, cursor_quality = lib.cursor.parse_cursor_item(player)
                 if cursor_item == nil then return end
 
                 local item_proto = prototyper.util.find("items", cursor_item.name, "item")  ---@as FPItemPrototype?
+                local quality = cursor_quality and cursor_quality.name
                 local modal_data = lib.globals.modal_data(player)  ---@as PickerDialogModalData
                 if item_proto == nil or not lib.availability.can_define_factory_item(item_proto, modal_data.item_category) then
                     local name = (item_proto) and item_proto.localised_name or {"fp.this"}
@@ -754,10 +773,24 @@ listeners.gui = {
                         {"fp.pl_" .. modal_data.item_category, 1}})
                 else
                     local factory = lib.context.get(player, "Factory")  ---@as Factory
-                    local existing_item = not modal_data.create_factory and factory:find({proto=item_proto}) or nil
+                    local existing_item = nil  ---@type FactoryItem?
+                    local existing_quality = {}  ---@type table<string, true>
+
+                    local factory_item = not modal_data.create_factory and factory:find({proto=item_proto})
+                    while factory_item do
+                        if factory_item.quality_proto and factory_item.quality_proto.name == quality then
+                            existing_item = factory_item
+                        end
+
+                        local factory_item_quality = factory_item.quality_proto and factory_item.quality_proto.name or "normal"
+                        existing_quality[factory_item_quality] = true
+                        factory_item = factory:find({proto=item_proto}, factory_item)
+                    end
+
                     local existing_category = (existing_item) and existing_item.category or nil
+                    local enabled = not existing_item or QUALITY_ENABLED
                     local tags = {item_id=item_proto.id, category_id=item_proto.category_id,
-                        enabled=(existing_item == nil), existing_category=existing_category}
+                        enabled=enabled, existing_category=existing_category, existing_quality=existing_quality}
                     handle_item_pick(player, tags--[[@as SelectPickerItemTags]])
                 end
             end
@@ -813,7 +846,7 @@ listeners.gui = {
                 local amount = lib.gui.parse_expression_field(event.element, true)
                 lib.gui.update_expression_field(event.element, amount ~= nil)
 
-                update_dialog_submit_button(lib.globals.modal_elements(player))
+                update_dialog_submit_button(lib.globals.modal_data(player)--[[@as PickerDialogModalData]])
             end
         },
         {
@@ -825,7 +858,7 @@ listeners.gui = {
 
                 local modal_data = lib.globals.modal_data(player)  ---@as PickerDialogModalData
                 sync_amounts(modal_data)  -- defined_by ~= "amount"
-                update_dialog_submit_button(modal_data.modal_elements)
+                update_dialog_submit_button(modal_data)
             end
         }
     },
