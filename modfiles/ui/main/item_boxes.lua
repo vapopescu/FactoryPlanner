@@ -68,12 +68,18 @@ local function prepare_item_buttons(player, factory, item_category)
     if not factory or not factory.valid then return {} end
 
     local buttons = {}  ---@type ItemBoxButton[]
-    local defined_items = {}  ---@type table<FPItemPrototype, ItemCategory>
+    local defined_items = {}  ---@type table<SolverItemKey, ItemCategory>
     local floor = lib.context.get(player, "Floor")  ---@as Floor
 
     if floor.level == 1 then
         for item in factory:iterator() do
-            defined_items[item.proto] = item.category
+            local raw_item = {
+                name = item.proto.name,
+                type = item.proto--[[@as FPItemPrototype]].type,
+                quality = item.quality_proto and item.quality_proto.name,
+                amount = 0
+            }  ---@type SolverItem
+            defined_items[solver.util.pack_item(raw_item)] = item.category
         end
     end
 
@@ -84,8 +90,9 @@ local function prepare_item_buttons(player, factory, item_category)
         local required_amount = item.required_amount or 0
         local part_amount = target and required_amount or (item.amount - required_amount)
         local tolerance = math.max(item.amount, required_amount) * MAGIC_NUMBERS.margin_of_error
+        local item_key = solver.util.pack_item(item)
         if part_amount <= tolerance and (target or item.amount ~= 0) then return end
-        if not target and defined_items[item.proto] == item_category and part_amount == 0 then return end
+        if not target and defined_items[item_key] == item_category and part_amount == 0 then return end
 
         local amount, number_tooltip, secondary_amount
 
@@ -94,8 +101,8 @@ local function prepare_item_buttons(player, factory, item_category)
             top_level = false,
             top_floor = (floor.level == 1),
             can_define_target = lib.availability.can_define_factory_item(item.proto, item_category),
-            defined_product = (defined_items[item.proto] == "product"),
-            defined_ingredient = (defined_items[item.proto] == "ingredient"),
+            defined_product = (defined_items[item_key] == "product"),
+            defined_ingredient = (defined_items[item_key] == "ingredient"),
             product = (item_category == "product"),
             special = special,
             entity = (item.proto.type == "entity"),
@@ -199,7 +206,7 @@ local function prepare_item_buttons(player, factory, item_category)
 
     for _, target in ipairs{true, false} do
         for index, item in pairs(floor[item_category .. "s"]) do
-            if not target or defined_items[item.proto] ~= item_category then add_calculated_item(item, index, target) end
+            if not target or defined_items[solver.util.pack_item(item)] ~= item_category then add_calculated_item(item, index, target) end
         end
     end
 
