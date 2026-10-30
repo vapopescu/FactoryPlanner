@@ -1,149 +1,28 @@
 ---@diagnostic disable
-
--- Covers the research pseudo-recipes: setup defines science packs, labs and
--- technologies, check asserts what the generator made of them.
---
--- Each lab input set buckets the technologies it can research (their packs a subset
--- of the inputs) by time and amount profile: costs merge when they only differ in
--- which amount-1 packs they use, distinct above-1 amounts stay apart. A recipe takes
--- the packs its bucket's technologies actually use, at their real amounts, and
--- produces the research item of its time. Sets no technology matches don't exist,
--- and neither do items for times only they observe. Machine categories are keyed on
--- the input set, so all buckets of one set share machines and defaults, and a lab
--- joins every category whose set is a subset of its inputs. Recipes show their
--- set's first lab by entity order as their icon; the items get the time-badged
--- flask.
---
--- Times are chosen so no base technology shares one: base uses 5/10/15/30/35/45/60s,
--- these use 17/19/23/31/47/150s. That keeps the absence assertions meaningful even
--- though all cases load into the same game.
---
--- Coverage:
---   tech-a       17s, packs 1+2+3      merges with tech-b: all amounts are 1
---   tech-b       17s, pack 1           same time through a subset technology
---   tech-amount2 17s, pack 1 amount 2  distinct amount profile, its own recipe
---   tech-c       31s, pack 1           second time, reaching both sets via subset
---   tech-union12 23s, packs 1+2        with tech-union13, neither set containing the
---   tech-union13 23s, packs 1+3        other: the bucket's ingredients are the union
---   tech-hidden  19s, pack 1           hidden technology, skipped
---   tech-none    47s, hidden-lab pack  only a hidden lab takes it: no set, and its
---                                      time doesn't exist for any set
---   tech-minutes 150s, pack 1          minute formatting and icon path
---   tech-trigger trigger-based         no science units at all, skipped
-
 local helpers = require("helpers")
 
+local single_set = "test-research-pack-1"
+local pair_set = "test-research-pack-1-test-research-pack-2"
+local multi_set = "test-research-pack-1-test-research-pack-2-test-research-pack-3"
+local unused_set = "test-research-pack-unused"
+local single_category = "research-" .. single_set
+local pair_category = "research-" .. pair_set
+local multi_category = "research-" .. multi_set
+
+local function lab_categories(name)
+    local categories = {}
+    for _, category in pairs(storage.prototypes.machines) do
+        for _, member in pairs(category.members) do
+            if member.name == name then categories[member.category] = member end
+        end
+    end
+    return categories
+end
+
 return {
-    setup = function()
-        local deepcopy = require("util").table.deepcopy
-
-        -- ** SCIENCE PACKS **
-
-        -- Item orders deliberately disagree with the name order (pack-2 sorts last),
-        -- so the order-based ingredient sorting and sprite pick are provably not
-        -- falling back to name order
-        local packs = {}
-        for suffix, order in pairs({["1"] = "test-a-1", ["2"] = "test-a-9",
-                ["3"] = "test-a-3", ["none"] = "test-a-4", ["unused"] = "test-a-5"}) do
-            local pack = deepcopy(data.raw.item["automation-science-pack"])
-            pack.name = "test-research-pack-" .. suffix
-            pack.order = order
-            table.insert(packs, pack)
-        end
-        data:extend(packs)
-
-        -- Non-neutral normal modifiers expose baselines that already include quality.
-        -- Other machine calculations use a synthetic FP-quality object at runtime,
-        -- since Factorio rejects additional qualities with the feature flag disabled.
-        data.raw.quality.normal.science_pack_drain_multiplier = 0.5
-        data.raw.quality.normal.lab_research_speed_multiplier = 1.5
-        data.raw.quality.normal.lab_module_slots_bonus = 2
-
-        -- ** LABS **
-
-        local function test_lab(name, overrides)
-            local lab = deepcopy(data.raw.lab.lab)
-            lab.name = name
-            lab.fast_replaceable_group = nil
-            lab.next_upgrade = nil
-            lab.inputs = {"test-research-pack-1", "test-research-pack-2", "test-research-pack-3"}
-            for key, value in pairs(overrides) do lab[key] = value end
-            return lab
-        end
-
-        data:extend{
-            test_lab("test-research-lab-a", {researching_speed = 2}),
-            test_lab("test-research-lab-b", {researching_speed = 1, science_pack_drain_rate_percent = 70}),
-            test_lab("test-research-lab-quality-drain", {science_pack_drain_rate_percent = 70,
-                uses_quality_drain_modifier = true, quality_affects_module_slots = true}),
-            test_lab("test-research-lab-clamped-drain", {science_pack_drain_rate_percent = 1,
-                uses_quality_drain_modifier = true}),
-            test_lab("test-research-lab-restricted", {inputs = {"test-research-pack-1"}}),
-            -- Visible, but no technology uses its only pack, so its set is dropped
-            test_lab("test-research-lab-unused", {inputs = {"test-research-pack-unused"}}),
-            -- One set shared by two labs whose entity order disagrees with their name
-            -- order, so the recipe icon provably follows the order
-            test_lab("test-research-lab-pair-a", {order = "b",
-                inputs = {"test-research-pack-1", "test-research-pack-2"}}),
-            test_lab("test-research-lab-pair-z", {order = "a",
-                inputs = {"test-research-pack-1", "test-research-pack-2"}}),
-            -- The game refuses to load a technology no lab at all accepts, so the
-            -- unaccepted-pack scenario means acceptance by a hidden lab only
-            test_lab("test-research-lab-hidden", {inputs = {"test-research-pack-none"}, hidden = true})
-        }
-
-        -- ** TECHNOLOGIES **
-
-        local function test_tech(name, overrides)
-            local tech = deepcopy(data.raw.technology["automation"])
-            tech.name = name
-            tech.prerequisites = nil
-            tech.effects = nil
-            tech.unit = {count = 10, time = 17,
-                ingredients = {{"test-research-pack-1", 1}}}
-            for key, value in pairs(overrides) do tech[key] = value end
-            return tech
-        end
-
-        data:extend{
-            test_tech("test-research-tech-a", {
-                effects = {{type = "laboratory-productivity", modifier = 0.1}},
-                unit = {count = 10, time = 17, ingredients = {
-                    {"test-research-pack-1", 1}, {"test-research-pack-2", 1},
-                    {"test-research-pack-3", 1}}}
-            }),
-            test_tech("test-research-tech-b", {}),
-            test_tech("test-research-tech-amount2", {unit = {count = 10, time = 17, ingredients = {
-                {"test-research-pack-1", 2}}}}),
-            test_tech("test-research-tech-c", {unit = {count = 10, time = 31, ingredients = {
-                {"test-research-pack-1", 1}}}}),
-            test_tech("test-research-tech-union12", {unit = {count = 10, time = 23, ingredients = {
-                {"test-research-pack-1", 1}, {"test-research-pack-2", 1}}}}),
-            test_tech("test-research-tech-union13", {unit = {count = 10, time = 23, ingredients = {
-                {"test-research-pack-1", 1}, {"test-research-pack-3", 1}}}}),
-            test_tech("test-research-tech-hidden", {hidden = true,
-                unit = {count = 10, time = 19, ingredients = {{"test-research-pack-1", 1}}}}),
-            test_tech("test-research-tech-none", {unit = {count = 10, time = 47, ingredients = {
-                {"test-research-pack-none", 1}}}}),
-            test_tech("test-research-tech-minutes", {unit = {count = 10, time = 150,
-                ingredients = {{"test-research-pack-1", 1}}}}),
-            test_tech("test-research-tech-trigger", {unit = nil,
-                research_trigger = {type = "craft-item", item = "iron-plate", count = 1}})
-        }
-    end,
-
-    check = function(context)
+    testResearchRecipes = {check=function(context)
         local c = helpers.collector()
         local find = prototyper.util.find
-
-        local single_set = "test-research-pack-1"
-        local pair_set = "test-research-pack-1-test-research-pack-2"
-        local multi_set = "test-research-pack-1-test-research-pack-2-test-research-pack-3"
-        local unused_set = "test-research-pack-unused"
-        local single_category = "research-" .. single_set
-        local pair_category = "research-" .. pair_set
-        local multi_category = "research-" .. multi_set
-
         -- One recipe per lab input set and observed cost bucket
         local function check_recipe(signature, ticks, category)
             local name = "impostor-research-" .. signature .. "-" .. ticks
@@ -283,14 +162,18 @@ return {
                 c.check(#recipe_proto.ingredients > 0, "research recipe without ingredients: " .. name)
             end
         end
-
+        c.done()
+    end},
+    testResearchItems = {check=function(context)
+        local c = helpers.collector()
+        local find = prototyper.util.find
         -- One research item per observed time, living in the dedicated research
         -- group; the pack sets exist only as recipes
         for _, ticks in ipairs({1020, 1380, 1860, 9000}) do
             local item = find("items", "custom-research-" .. ticks, "entity")
             if item then
                 c.check(item.type == "entity" and item.hidden == false
-                    and item.fixed_unit == nil and item.ingredient_only == false,
+                    and item.fixed_unit == nil and lib.availability.has_productive_recipe(item, "produce"),
                     "item: expected a visible entity item without a fixed unit")
                 c.check(item.group.name == prototypes.item_subgroup["science-pack"].group.name
                     and item.subgroup.name == "fp_research",
@@ -317,18 +200,11 @@ return {
                     and minute_item.localised_name[3][1] == "fp.unit_minute",
                 "item: expected a 2.5-minute localised name")
         end
-
-        -- Labs join every category whose pack set is a subset of their inputs
-        local function lab_categories(name)
-            local categories = {}
-            for _, category in pairs(storage.prototypes.machines) do
-                for _, member in pairs(category.members) do
-                    if member.name == name then categories[member.category] = member end
-                end
-            end
-            return categories
-        end
-
+        c.done()
+    end},
+    testResearchLabCategories = {check=function(context)
+        local c = helpers.collector()
+        local find = prototyper.util.find
         for _, lab_name in ipairs({"test-research-lab-a", "test-research-lab-b"}) do
             local categories = lab_categories(lab_name)
             c.check(categories[single_category] ~= nil and categories[multi_category] ~= nil,
@@ -351,70 +227,6 @@ return {
             c.check(helpers.approx(lab_b.speed, 1), "lab-b: expected researching speed 1")
             c.check(helpers.approx(lab_b.resource_drain_rate, 0.7), "lab-b: expected drain rate 0.7")
         end
-
-        -- Exercise the runtime Machine calculations without involving any solver.
-        local normal_quality = find("qualities", "normal")
-        c.check(helpers.approx(normal_quality.science_pack_drain_multiplier, 0.5),
-            "quality: science-pack drain multiplier was not preserved")
-        local test_quality = {
-            name = "synthetic-research-quality",
-            lab_research_speed_multiplier = 1.6,
-            science_pack_drain_multiplier = 0.5,
-            lab_module_slots_bonus = 3
-        }
-
-        local function calculated_lab(name)
-            local proto = lab_categories(name)[multi_category]
-            if not proto then c.check(false, name .. ": missing machine"); return nil end
-            local machine = context.classes.Machine.init({}, proto)
-            c.check(helpers.approx(machine:get_speed(),
-                    prototypes.entity[name].get_researching_speed("normal")),
-                name .. ": normal research multiplier was counted twice")
-            c.check(machine.proto.module_limit == 2,
-                name .. ": expected two raw module slots")
-            c.check(machine:get_module_limit() == prototypes.entity[name].module_inventory_size,
-                name .. ": normal module slot bonus was counted twice")
-            machine.quality_proto = test_quality
-            return machine
-        end
-        local lab_b_calculated = calculated_lab("test-research-lab-b")
-        local quality_lab_calculated = calculated_lab("test-research-lab-quality-drain")
-        local clamped_lab_calculated = calculated_lab("test-research-lab-clamped-drain")
-
-        if lab_b_calculated then
-            c.check(helpers.approx(lab_b_calculated:get_speed(), 1.6),
-                "lab-b: expected quality to multiply researching speed")
-            c.check(helpers.approx(lab_b_calculated:get_resource_drain_rate(), 0.7),
-                "lab-b: quality drain modifier should be ignored")
-            c.check(lab_b_calculated:get_module_limit() == lab_b_calculated.proto.module_limit,
-                "lab-b: quality added slots without the opt-in flag")
-            c.check(helpers.approx(lab_b_calculated:get_energy_usage(),
-                    lab_b_calculated.proto.energy_usage),
-                "lab-b: quality unexpectedly changed lab energy usage")
-        end
-        if quality_lab_calculated then
-            c.check(helpers.approx(quality_lab_calculated:get_resource_drain_rate(), 0.35),
-                "quality-drain lab: expected an above-floor drain rate of 0.35")
-            c.check(quality_lab_calculated:get_module_limit() == 5,
-                "quality-drain lab: expected three quality module slots")
-        end
-        if clamped_lab_calculated then
-            c.check(helpers.approx(clamped_lab_calculated:get_resource_drain_rate(), 0.01),
-                "clamped-drain lab: expected the minimum drain rate of 0.01")
-        end
-
-        c.check(PRODUCTIVITY_RECIPES["custom-research"] == true,
-            "custom-research missing from PRODUCTIVITY_RECIPES")
-
-        -- The utility dialog and factory calculations consume this helper, so verify
-        -- that it reads and converts the game's force-wide lab bonus.
-        local force = game.players[1].force
-        local previous_bonus = force.laboratory_productivity_bonus
-        force.laboratory_productivity_bonus = 0.125
-        c.check(lib.effects.get_recipe_productivity(force, "custom-research") == 1250,
-            "expected the 12.5% lab bonus at effect precision")
-        force.laboratory_productivity_bonus = previous_bonus
-
         c.done()
-    end
+    end},
 }

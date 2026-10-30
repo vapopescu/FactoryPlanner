@@ -1,34 +1,13 @@
 ---@diagnostic disable
-
--- Tests for lib utilities: expressions, formatters and clipboard operations.
-
 local formatters = require("suite.formatters")
-local clipboard = require("suite.clipboard")
-local factory_items = require("suite.factory-items")
-
-return {{
-    name = "normal",
-    cases = {
-        testLibExpressions = require("suite.expressions"),
-        testFactoryItemDefinitions = factory_items.definitions,
-        testFactoryItemPicker = factory_items.picker,
-        testFactoryItemToggle = factory_items.toggle,
-        testDistrictFactoryMove = require("suite.district-list"),
-        testLibFormatNumber = formatters.number,
-        testLibFormatSIValue = formatters.SI_value,
-        testLibFormatSpecialAmount = formatters.special_amount,
-        testLibFormatButtonNumber = formatters.button_number,
-        testLibFormatMachineAmount = formatters.machine_amount,
-        testLibClipboardCopySnapshots = clipboard.copy_snapshots,
-        testLibClipboardCopyProduct = clipboard.copy_product,
-        testLibClipboardProductItemCompatibility = clipboard.product_item_compatibility,
-        testLibClipboardPasteOntoRecipe = clipboard.paste_onto_recipe,
-        testLibClipboardPasteFailures = clipboard.paste_failures,
-        testLibClipboardCutLineCollapsesSubfloor = clipboard.cut_line_collapses_subfloor,
-        testLibClipboardCutSubfloor = clipboard.cut_subfloor,
-        testLibClipboardCutBeacon = clipboard.cut_beacon,
-        testLibClipboardCutModules = clipboard.cut_modules,
-        testLibClipboardCutProduct = clipboard.cut_product,
-        testLibClipboardCutRestrictions = clipboard.cut_restrictions
-    }
-}}
+local utilities = require("suite.utilities")
+return {{name="normal", cases={
+    testResearchProductivityEffect = utilities.research,
+    testDefaultsLookup = utilities.defaults.lookup,
+    testLibExpressions = utilities.expressions,
+    testLibFormatNumber = formatters.number,
+    testLibFormatSIValue = formatters.SI_value,
+    testLibFormatSpecialAmount = formatters.special_amount,
+    testLibFormatButtonNumber = formatters.button_number,
+    testLibFormatMachineAmount = formatters.machine_amount
+}}}
