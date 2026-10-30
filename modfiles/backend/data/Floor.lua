@@ -269,14 +269,17 @@ function Floor:set_solver(solver_name, recursive)
     return changed
 end
 
----@param self_only boolean?
-function Floor:clear_solver_cache(self_only)
+---@param recurse_direction ("top" | "bottom")?
+function Floor:clear_solver_cache(recurse_direction)
     self.linear_dependence_data = nil
     self.solver_result_cache = nil
 
-    if self_only then return end
-    for line_object in self:iterator() do
-        if line_object.class == "Floor" then line_object:clear_solver_cache() end
+    if recurse_direction == "top" and self.parent.class == "Floor" then
+        self.parent--[[@as Floor]]:clear_solver_cache(recurse_direction)
+    elseif recurse_direction == "bottom" then
+        for floor in self:iterator({class="Floor"}) do
+            floor--[[@as Floor]]:clear_solver_cache(recurse_direction)
+        end
     end
 end
 

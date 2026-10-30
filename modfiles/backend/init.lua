@@ -205,8 +205,7 @@ local function handle_configuration_change()
         for district in storage.players[index--[[@as PlayerIndex]]].realm:iterator() do
             district.needs_refresh = true
             for factory in district:iterator() do
-                factory.top_floor:clear_solver_cache()
-                solver.update(player, factory)
+                solver.update(player, factory, true)
             end
         end
     end

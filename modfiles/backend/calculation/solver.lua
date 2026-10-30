@@ -721,61 +721,67 @@ end
 
 
 -- ** TOP LEVEL **
---- Updates the whole factory calculations from top to bottom
+--- Updates the whole factory calculations from top to bottom.
+--- Assume only the floor in context and its parents need a cache clear,
+--- unless the need for a whole cache clear is specified.
 ---@param player LuaPlayer
 ---@param factory Factory?
-function solver.update(player, factory)
+---@param flush_cache boolean?
+function solver.update(player, factory, flush_cache)
     factory = factory or lib.context.get(player, "Factory")  ---@as Factory
-    if factory and factory.valid then
-        -- Cancel any pending update as it'll be running right now
-        if factory.tick_of_solver_update then
-            lib.nth_tick.cancel(factory.tick_of_solver_update)
-            factory.tick_of_solver_update = nil
-        end
+    local floor = lib.context.get(player, "Floor")--[[@as Floor?]] or factory.top_floor
 
-        -- Clear solver caches on updated floors
-        local floor = lib.context.get(player, "Floor")
-        while floor and floor.class == "Floor" do
-            floor:clear_solver_cache(true)
-            floor = floor.parent
-        end
+    -- Early exit
+    if not (factory and factory.valid) then return end
 
-        local factory_data = generate_factory_data(player, factory)
-        local result_map = {}  ---@type FloorResultMap
-
-        ---@param floor_id ObjectID
-        local function solve_floor(floor_id)
-            -- Recurse the floor tree from the leaves to the top floor (root)
-            local floor_data = factory_data.floor_data_map[floor_id]
-            if not floor_data then return end
-            for _, line_object_id in pairs(floor_data.line_ids) do
-                if factory_data.floor_data_map[line_object_id] then
-                    solve_floor(line_object_id)
-                end
-            end
-
-            local result = nil
-            if floor_data.result_cache then
-                result = floor_data.result_cache
-            elseif floor_data.solver_choice == "sequential" then
-                result = sequential_engine.solve_floor(factory_data, floor_id)
-            elseif floor_data.solver_choice == "simplex" then
-                result = simplex_engine.solve_floor(factory_data, floor_id)
-            elseif floor_data.solver_choice == "gaussian" then
-                result = gaussian_engine.solve_floor(factory_data, floor_id)
-            end
-
-            if result then
-                result_map[floor_id] = result
-                if floor_data.level > 1 then  -- no need to do this for the top floor
-                    generate_line_data_from_result(factory_data, floor_id, result)
-                end
-            end
-        end
-
-        solve_floor(factory.top_floor.id)
-        update_factory(factory_data, result_map)
+    -- Cancel any pending update as it'll be running right now
+    if factory.tick_of_solver_update then
+        lib.nth_tick.cancel(factory.tick_of_solver_update)
+        factory.tick_of_solver_update = nil
     end
+
+    -- Clear solver caches
+    if flush_cache then
+        factory.top_floor:clear_solver_cache("bottom")
+    else
+        floor:clear_solver_cache("top")
+    end
+
+    local factory_data = generate_factory_data(player, factory)
+    local result_map = {}  ---@type FloorResultMap
+
+    ---@param floor_id ObjectID
+    local function solve_floor(floor_id)
+        -- Recurse the floor tree from the leaves to the top floor (root)
+        local floor_data = factory_data.floor_data_map[floor_id]
+        if not floor_data then return end
+        for _, line_object_id in pairs(floor_data.line_ids) do
+            if factory_data.floor_data_map[line_object_id] then
+                solve_floor(line_object_id)
+            end
+        end
+
+        local result = nil
+        if floor_data.result_cache then
+            result = floor_data.result_cache
+        elseif floor_data.solver_choice == "sequential" then
+            result = sequential_engine.solve_floor(factory_data, floor_id)
+        elseif floor_data.solver_choice == "simplex" then
+            result = simplex_engine.solve_floor(factory_data, floor_id)
+        elseif floor_data.solver_choice == "gaussian" then
+            result = gaussian_engine.solve_floor(factory_data, floor_id)
+        end
+
+        if result then
+            result_map[floor_id] = result
+            if floor_data.level > 1 then  -- no need to do this for the top floor
+                generate_line_data_from_result(factory_data, floor_id, result)
+            end
+        end
+    end
+
+    solve_floor(factory.top_floor.id)
+    update_factory(factory_data, result_map)
 end
 
 
@@ -787,7 +793,7 @@ listeners.global = {
         ---@cast metadata UpdateSolverMetadata
         local player = game.get_player(metadata.player_index)  ---@as LuaPlayer
         local factory = OBJECT_INDEX[metadata.factory_id]
-        solver.update(player, factory)
+        solver.update(player, factory, true)
 
         -- Scheduled updates run without user interaction, so the interface needs a refresh
         if lib.context.get(player, "Factory") == factory then
