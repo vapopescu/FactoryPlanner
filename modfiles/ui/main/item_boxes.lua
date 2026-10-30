@@ -59,6 +59,7 @@ end
 ---@field tooltip LocalisedString?
 ---@field is_add_button boolean?
 ---@field proto FPItemPrototype?
+---@field quality_proto FPQualityPrototype?
 
 ---@param player LuaPlayer
 ---@param factory Factory?
@@ -136,7 +137,7 @@ local function prepare_item_buttons(player, factory, item_category)
             secondary_number=secondary_amount, sprite=item.proto.sprite, quality=quality,
             style=target and "fflib_slot_button_green" or "fflib_slot_button_default",
             mouse_button_filter={"left-and-right"}, raise_hover_events=true}
-        table.insert(buttons, {definition=definition, tooltip=tooltip, proto=item.proto})
+        table.insert(buttons, {definition=definition, tooltip=tooltip, proto=item.proto, quality_proto=item.quality_proto})
     end
 
     if floor.level == 1 then
@@ -198,7 +199,7 @@ local function prepare_item_buttons(player, factory, item_category)
             local definition = {type="sprite-button", tags=tags--[[@as Tags]], number=amount,
                 secondary_number=secondary_amount, style=style, sprite=item.proto.sprite, quality=quality,
                 mouse_button_filter={"left-and-right"}, raise_hover_events=true}
-            table.insert(buttons, {definition=definition, tooltip=tooltip, proto=item.proto})
+            table.insert(buttons, {definition=definition, tooltip=tooltip, proto=item.proto, quality_proto=item.quality_proto})
 
             ::skip_item::
         end
@@ -395,7 +396,8 @@ local function render_item_box(player, category, buttons, columns, height)
     for _, data in ipairs(buttons) do
         local button = table_items.add(data.definition)
         tooltips[button.index] = data.tooltip
-        if data.proto then item_highlights.register(player, button, data.proto) end
+        local item = SimpleItem.init(nil, data.proto--[[@as FPItemPrototype]], data.quality_proto)
+        if data.proto then item_highlights.register(player, button, item) end
         if data.is_add_button then
             button.style.padding = 4
             button.style.margin = 4

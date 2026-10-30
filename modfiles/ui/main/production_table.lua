@@ -399,7 +399,7 @@ local function add_catalysts(line, parent_flow, category, metadata)
             tags=tags, number=amount, secondary_number=secondary_amount, style="fflib_slot_button_purple",
             mouse_button_filter={"left-and-right"}, raise_hover_events=true}
         metadata.tooltips[button.index] = tooltip
-        item_highlights.register_line_item(metadata.player, button, line, proto, category)
+        item_highlights.register_line_item(metadata.player, button, line, item, category)
     end
 end
 
@@ -453,7 +453,7 @@ function builders.products(line, parent_flow, metadata)
                 style=style, quality=quality, tags=tags, number=amount, secondary_number=secondary_amount,
                 mouse_button_filter={"left-and-right"}, raise_hover_events=true}
             metadata.tooltips[button.index] = tooltip
-            item_highlights.register_line_item(metadata.player, button, line, proto, "products")
+            item_highlights.register_line_item(metadata.player, button, line, product, "products")
 
             ::skip_product::
         end
@@ -525,7 +525,7 @@ local function add_fuel(line, parent_flow, metadata)
         quality=quality, style=style, number=amount, secondary_number=secondary_amount,
         mouse_button_filter={"left-and-right"}, raise_hover_events=true}
     metadata.tooltips[button.index] = tooltip
-    item_highlights.register(metadata.player, button, fuel.proto--[[@as FPFuelPrototype]], fuel:get_name_with_temperature())
+    item_highlights.register(metadata.player, button, fuel, fuel:get_name_with_temperature())
 end
 
 ---@param line LineObject
@@ -591,7 +591,7 @@ function builders.ingredients(line, parent_flow, metadata)
                 quality=quality, style=style, tags=tags, number=amount, secondary_number=secondary_amount,
                 mouse_button_filter={"left-and-right"}, raise_hover_events=true}
             metadata.tooltips[button.index] = tooltip
-            item_highlights.register_line_item(metadata.player, button, line, proto, "ingredients")
+            item_highlights.register_line_item(metadata.player, button, line, ingredient, "ingredients")
 
             ::skip_ingredient::
         end

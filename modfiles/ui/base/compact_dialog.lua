@@ -355,7 +355,7 @@ local function add_item_flow(line, relevant_line, item_category, metadata)
             end
             if flags.special then first_special_index = first_special_index or position end
 
-            item_highlights.register_line_item(metadata.player, button, line, proto, item_category)
+            item_highlights.register_line_item(metadata.player, button, line, item, item_category)
 
             ::skip_item::
         end
@@ -399,7 +399,7 @@ local function add_item_flow(line, relevant_line, item_category, metadata)
         metadata.tooltips[button.index] = {"", name_line, temperature_line, number_line}
         if first_special_index then first_special_index = first_special_index + 1 end
 
-        item_highlights.register_line_item(metadata.player, button, line, proto, item_category)
+        item_highlights.register_line_item(metadata.player, button, line, item, item_category)
     end
 
     if item_category == "ingredients" and line.machine.fuel then
@@ -442,7 +442,7 @@ local function add_item_flow(line, relevant_line, item_category, metadata)
             mouse_button_filter={"left-and-right"}, raise_hover_events=true, index=first_special_index}
         metadata.tooltips[button.index] = tooltip
 
-        item_highlights.register(metadata.player, button, fuel.proto--[[@as FPFuelPrototype]], fuel:get_name_with_temperature())
+        item_highlights.register(metadata.player, button, fuel, fuel:get_name_with_temperature())
     end
 end
 
@@ -525,7 +525,7 @@ local function refresh_compact_header(player, factory)
             raise_hover_events=true}
         tooltips[button.index] = tooltip
 
-        item_highlights.register(player, button, proto)
+        item_highlights.register(player, button, ingredient)
 
         ::skip_ingredient::
     end
