@@ -36,10 +36,12 @@ export FACTORIO="/path/to/factorio/bin/x64/factorio"
 ```
 
 Test commands use the installed executable without updating it. CI provisions the
-latest Python 3.14 patch release before running tests, and runs
+newest available Python 3.13 build compatible with the runner before testing, and runs
 `bash tests/update-factorio.sh` as a separate step before testing. You can also run
 it manually for a Linux headless installation; update checks and downloads are
 best effort, so a failed update does not prevent testing the installed version.
+The Ubuntu 20.04 runner currently resolves to Python 3.13.3; newer builds from
+`setup-python` require upgrading the runner OS.
 
 ## Organization
 
