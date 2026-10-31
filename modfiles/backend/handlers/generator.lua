@@ -144,10 +144,10 @@ function generator.recipes.generate(context)
     local any_mining_productivity = false
     local any_lab_productivity = false
 
-    local tech_filter = {{filter="hidden", invert=true}, {filter="has-effects", mode="and"}}
+    local tech_filter = {{filter="has-effects"}}
     for _, tech_proto in pairs(prototypes.get_technology_filtered(tech_filter)) do
         for _, effect in pairs(tech_proto.effects) do
-            if effect.type == "unlock-recipe" then
+            if effect.type == "unlock-recipe" and not tech_proto.hidden then
                 local recipe_name = effect.recipe
                 researchable_recipes[recipe_name] = researchable_recipes[recipe_name] or {}
                 table.insert(researchable_recipes[recipe_name], tech_proto.name)
