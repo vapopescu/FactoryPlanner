@@ -6,6 +6,7 @@ WORKSPACE=${GITHUB_WORKSPACE:-$(cd "$(dirname "$0")/.." && pwd)}
 # Every game launch goes through the wrapper, which gives this worktree a write-data
 # directory of its own so runs from several worktrees don't lock each other out
 RUN=$WORKSPACE/tests/factorio.sh
+TEST_TIMEOUT=${FACTORIO_TEST_TIMEOUT:-30}
 
 usage() {
   echo "Usage: bash tests/run.sh <save-create | suites | suite <name> [configuration] [case-filter]>"
@@ -27,49 +28,11 @@ case $TEST in
   *) usage; exit 2 ;;
 esac
 
-# Tests run on a save rather than a fresh map, since they need an actual player,
-# which only a save can carry. Adding factoryplanner runs on_init and the test runner
-SAVE=$WORKSPACE/tests/test.zip
-DOWNLOAD=https://factorio.com/get-download/latest/headless/linux64
-
 TEST_TMP=$(mktemp -d)
 trap 'rm -rf "$TEST_TMP"' EXIT
 FAILURE_DIR=""
 
 RED=$'\033[31m'; GREEN=$'\033[32m'; BOLD=$'\033[1m'; RESET=$'\033[0m'
-
-installed_version() {
-  "$FACTORIO" --version 2>/dev/null | sed -n '1s/^Version: \([0-9][0-9.]*\).*/\1/p'
-}
-
-# Never fatal: a failed update leaves the existing install in place and tests run on it
-update_factorio() {
-  local root=${FACTORIO%/bin/x64/factorio}
-  [ "$root" = "$FACTORIO" ] && return 0
-
-  local url latest current
-  url=$(curl -sIL -o /dev/null -w '%{url_effective}' --max-time 30 "$DOWNLOAD") || url=""
-  latest=$(printf '%s' "$url" | sed -n 's/.*_\([0-9][0-9.]*\)\.tar\.xz.*/\1/p')
-  current=$(installed_version)
-
-  if [ -z "$latest" ] || [ -z "$current" ]; then
-    echo "WARNING: update check failed, using installed Factorio"
-    return 0
-  elif [ "$latest" = "$current" ]; then
-    echo "Factorio $current is up to date"
-    return 0
-  fi
-
-  echo "Updating Factorio $current -> $latest"
-  if ! curl -sfL --max-time 600 "$url" -o "$TEST_TMP/headless.tar.xz"; then
-    echo "WARNING: download of Factorio $latest failed, using $current"
-  elif ! tar -xJf "$TEST_TMP/headless.tar.xz" -C "$(dirname "$root")"; then
-    echo "WARNING: extraction failed, check write access to $root; using $current"
-  else
-    echo "Factorio updated to $(installed_version)"
-  fi
-  return 0
-}
 
 # Preserve only failed logs; all mod copies and successful logs are removed on exit
 preserve_log() {
@@ -97,28 +60,38 @@ count_label() {
   printf '%s %s' "$count" "$noun"
 }
 
-# Run one configuration with a fresh mod copy and save load
-# RUN_* values let the suite aggregate results and discover its remaining configurations
-run_configuration() {
-  local suite_dir=$1 configuration=$2 cases=$3
-  local suite=$(basename "$suite_dir")
-  local mods=$TEST_TMP/mods logfile=$TEST_TMP/run.log report=$TEST_TMP/report
-  RUN_PASSED=0
-  RUN_CONFIGURATIONS=""
+# Factorio owns the verdict; logs supply the readable report and failure diagnostics
+run_game() {
+  local name=$1
+  shift
+  local logfile=$TEST_TMP/run.log report=$TEST_TMP/report exit_code=0
+  "$TIMEOUT" -k 5 "$TEST_TIMEOUT" "$RUN" "$@" > "$logfile" 2>&1 || exit_code=$?
 
-  rm -rf "$mods"
-  mkdir -p "$mods"
+  sed -n '/FPTEST_REPORT$/,/FPTEST_REPORT_END$/{/FPTEST_REPORT/!p;}' "$logfile" > "$report"
+  sed "s/✓/${GREEN}✓${RESET}/; s/✗/${RED}✗${RESET}/" "$report"
+  [ "$exit_code" -ne 0 ] || return 0
+
+  local reason="game failed (exit $exit_code)"
+  if [ "$exit_code" -eq 124 ] || [ "$exit_code" -eq 137 ]; then
+    reason="game timed out after $TEST_TIMEOUT seconds"
+  fi
+  echo "  ${RED}✗${RESET} $reason [$name]"
+  # Show engine diagnostics when the report doesn't explain the failure, or on timeout
+  if ! grep -q '✗' "$report" || [ "$exit_code" -eq 124 ] || [ "$exit_code" -eq 137 ]; then
+    tail -n 20 "$logfile" | sed 's/^/    | /'
+  fi
+  preserve_log "$logfile" "$name"
+  return "$exit_code"
+}
+
+# All configurations in a suite use the same mod files, with new options for each launch
+prepare_suite() {
+  local suite_dir=$1 mods=$TEST_TMP/mods
+  rm -rf "$mods" || return 1
+  mkdir -p "$mods" || return 1
   cp -r "$WORKSPACE/modfiles" "$mods/factoryplanner" || return 1
   cp -r "$WORKSPACE/tests/mod" "$mods/factoryplanner-test" || return 1
   cp -r "$suite_dir" "$mods/factoryplanner-test/suite" || return 1
-  {
-    printf 'return {configuration='
-    if [ -n "$configuration" ]; then lua_string "$configuration"; else printf 'nil'; fi
-    printf ', filter='
-    lua_string "$cases"
-    printf '}\n'
-  } > "$mods/factoryplanner-test/options.lua"
-
   # Pin the full mod set so runs don't depend on the installation's defaults
   cat > "$mods/mod-list.json" << EOF
 {
@@ -133,59 +106,47 @@ run_configuration() {
     ]
 }
 EOF
+}
 
-  local exit_code=0
-  "$RUN" --mod-directory "$mods" --benchmark "$SAVE" --benchmark-ticks 1 > "$logfile" 2>&1 || exit_code=$?
+# RUN_* values are only metadata for summaries and configuration discovery
+run_configuration() {
+  local suite=$1 configuration=$2 cases=$3
+  local mods=$TEST_TMP/mods logfile=$TEST_TMP/run.log exit_code=0
+  RUN_PASSED=0
+  RUN_CONFIGURATIONS=""
+  {
+    printf 'return {configuration='
+    if [ -n "$configuration" ]; then lua_string "$configuration"; else printf 'nil'; fi
+    printf ', filter='
+    lua_string "$cases"
+    printf '}\n'
+  } > "$mods/factoryplanner-test/options.lua" || return 1
+
+  run_game "$suite-${configuration:-first}" --mod-directory "$mods" \
+    --test-scenario factoryplanner-test/tests || exit_code=$?
 
   RUN_CONFIGURATIONS=$(sed -n 's/^.*FPTEST_CONFIGURATION \([a-zA-Z0-9_-]*\)$/\1/p' "$logfile")
-  local selected=$(sed -n 's/^.*FPTEST_SELECTED \([a-zA-Z0-9_-]*\)$/\1/p' "$logfile")
-  local label=${selected:-${configuration:-first configuration}}
-  local result=$(sed -n 's/^.*FPTEST_RESULT \([0-9]* [0-9]*\)$/\1/p' "$logfile")
-  local failed=0 reason=""
-  if [ -n "$result" ]; then
-    RUN_PASSED=${result% *}
-    failed=${result#* }
-  fi
-  sed -n '/FPTEST_REPORT$/,/FPTEST_REPORT_END$/{/FPTEST_REPORT/!p;}' "$logfile" > "$report"
-
-  if grep -q "FPTEST_SETUP_FAILED" "$logfile"; then
-    reason="test setup failed"
-  elif [ "$exit_code" -ne 0 ]; then
-    reason="game failed"
-  elif [ -z "$result" ]; then
-    reason="tests did not run"
-  elif [ "$failed" -gt 0 ]; then
-    reason="$failed failed, $RUN_PASSED passed"
-  elif [ "$RUN_PASSED" -eq 0 ]; then
-    reason="no test cases selected"
-  fi
-
-  sed "s/✓/${GREEN}✓${RESET}/; s/✗/${RED}✗${RESET}/" "$report"
-  [ -n "$reason" ] || return 0
-
-  if [ ! -s "$report" ] || [ "$reason" = "game failed" ]; then
-    echo "  ${RED}✗${RESET} $reason [$label]"
-    # Startup and prototype errors may happen before the Lua runner can report
-    tail -n 20 "$logfile" | sed 's/^/    | /'
-  fi
-  preserve_log "$logfile" "$suite-${selected:-startup}"
-  return 1
+  RUN_PASSED=$(sed -n 's/^.*FPTEST_PASSED \([0-9][0-9]*\)$/\1/p' "$logfile" | tail -n 1)
+  RUN_PASSED=${RUN_PASSED:-0}
+  return "$exit_code"
 }
 
 run_suite() {
   local suite_dir=$1 configuration=${2:-} cases=${3:-}
+  local suite=$(basename "$suite_dir")
   local passed=0 failed=0 count=1
-  echo "${BOLD}$(basename "$suite_dir")${RESET}"
+  echo "${BOLD}$suite${RESET}"
+  prepare_suite "$suite_dir" || return 1
 
   # The first configuration also provides the ordered list for the rest of the suite
-  run_configuration "$suite_dir" "$configuration" "$cases" || failed=$((failed + 1))
+  run_configuration "$suite" "$configuration" "$cases" || failed=$((failed + 1))
   passed=$RUN_PASSED
   local configurations=$RUN_CONFIGURATIONS
   if [ -z "$configuration" ]; then
     local next first=true
     for next in $configurations; do
       if [ "$first" = true ]; then first=false; continue; fi
-      run_configuration "$suite_dir" "$next" "$cases" || failed=$((failed + 1))
+      run_configuration "$suite" "$next" "$cases" || failed=$((failed + 1))
       passed=$((passed + RUN_PASSED))
       count=$((count + 1))
     done
@@ -213,20 +174,22 @@ run_suites() {
   echo "${GREEN}All suites passed${RESET}"
 }
 
-update_factorio
+TIMEOUT=$(command -v timeout || command -v gtimeout) \
+  || { echo "Tests require timeout (install coreutils if unavailable)"; exit 1; }
+[[ $TEST_TIMEOUT =~ ^[1-9][0-9]*$ ]] \
+  || { echo "FACTORIO_TEST_TIMEOUT must be a positive number of seconds"; exit 2; }
+if [ "$TEST" != save-create ]; then
+  if ! "$FACTORIO" --help > "$TEST_TMP/help" 2>&1 || ! grep -q -- '--test-scenario' "$TEST_TMP/help"; then
+    echo "Tests require Factorio with --test-scenario support (2.1.24 or newer)"
+    exit 1
+  fi
+fi
 
 case $TEST in
   save-create)
     mkdir -p "$TEST_TMP/mods"
     cp -r "$WORKSPACE/modfiles" "$TEST_TMP/mods/factoryplanner"
-    exit_code=0
-    "$RUN" --mod-directory "$TEST_TMP/mods" --create "$TEST_TMP/test-map.zip" > "$TEST_TMP/factorio.log" 2>&1 || exit_code=$?
-    if [ "$exit_code" -ne 0 ] || grep -q "Error" "$TEST_TMP/factorio.log"; then
-      tail -n 20 "$TEST_TMP/factorio.log" | sed 's/^/  | /'
-      echo "${RED}✗ save-create: mod error during map creation${RESET}"
-      preserve_log "$TEST_TMP/factorio.log" save-create
-      exit 1
-    fi
+    run_game save-create --mod-directory "$TEST_TMP/mods" --create "$TEST_TMP/test-map.zip" || exit $?
     echo "${GREEN}✓${RESET} save-create: map created without errors"
     ;;
   suites) run_suites ;;

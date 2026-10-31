@@ -7,6 +7,9 @@ isn't installed at `/opt/factorio/bin/x64/factorio`. On macOS:
 export FACTORIO=/Applications/factorio.app/Contents/MacOS/factorio
 ```
 
+Suites require Factorio 2.1.24 or newer with `--test-scenario` support. The launcher
+also requires `timeout` or `gtimeout` (provided by coreutils if unavailable).
+
 ```sh
 bash tests/run.sh save-create                      # Smoke test map creation
 bash tests/run.sh suites                           # All suites and configurations
@@ -15,6 +18,11 @@ bash tests/run.sh suite gui no-wagons              # One prototype configuration
 bash tests/run.sh suite data normal Clipboard      # Filter case names with a Lua pattern
 bash tests/run.sh suite solver input-targets InputPacing_simplex
 ```
+
+Test commands use the installed executable without updating it. CI runs
+`bash tests/update-factorio.sh` as a separate step before testing. You can also run
+it manually for a Linux headless installation; update checks and downloads are
+best effort, so a failed update does not prevent testing the installed version.
 
 ## Organization
 
@@ -28,9 +36,8 @@ bash tests/run.sh suite solver input-targets InputPacing_simplex
 
 Tests do not cover migrations. Packing/unpacking and cloning checks use objects
 created by the current code. Do not add legacy-save fixtures, migration calls, or
-export/import round trips that invoke migrations. The test mod disables FactoryPlanner's
-configuration-change handler, which would otherwise run after the cases when the
-mod is first added to the fixture save.
+export/import round trips that invoke migrations. Each configuration starts a fresh
+scenario, so ordinary tests do not load an older save or trigger configuration changes.
 
 A case should cover one behavior. Keep meaningful transitions such as disabling
 and re-enabling a target together; split unrelated scenarios into separate named
@@ -56,10 +63,11 @@ return {{
 }}
 ```
 
-Every configuration gets a fresh Factorio launch using the same clean save. All
-setup functions run once, in order, regardless of the runtime case filter. Filtering
-a case therefore keeps its prototype environment identical to the complete run.
-A setup failure stops that configuration before runtime checks.
+The launcher prepares mod copies once per suite and rewrites `options.lua` for each
+configuration. Every configuration gets a fresh Factorio launch using the test mod's
+minimal scenario. All setup functions run once, in order, regardless of the runtime
+case filter. Filtering a case therefore keeps its prototype environment identical to
+the complete run. A setup failure stops that configuration before runtime checks.
 
 Use separate configurations when fixtures change global prototype properties or
 interact through generated recipes. Share compatible setup explicitly. Prototype
@@ -70,6 +78,9 @@ the configuration. The runner does not discover setup through selected cases.
 Configurations use letters, digits, hyphens and underscores. The first configuration
 reports the manifest to the launcher, avoiding a separate discovery launch or Lua
 interpreter. Later configurations and suites still run after a failure.
+
+The launcher writes `options.lua` for configuration and case selection. Configuration
+setup needs these options during the data stage, where `script.test_arg` is unavailable.
 
 ## Runtime fixtures and assertions
 
@@ -106,8 +117,18 @@ needed. Failures include tracebacks. A filter matching no cases is a failure.
 Temporary mod copies and successful logs are removed; failed logs are retained at the
 printed path. `tests/factorio.sh` maintains one game instance per worktree.
 
+Factorio's `--test-scenario` mode creates a player in headless mode. The runner is an
+ordinary `on_tick` listener inside FactoryPlanner's Lua context. On the first tick,
+it checks that player initialization completed, runs the cases, and reports results.
+Calling `script.finish_test` ends the process after that tick, so no temporary event
+handler or unregistration is needed. Factorio's exit status determines success or
+failure, including empty selections and setup errors. Log markers supply reports,
+passed-case totals, and configuration discovery; they do not determine the verdict.
+
+Each game process has a 30-second timeout, including startup. Override it with
+`FACTORIO_TEST_TIMEOUT` in seconds. A timed-out process fails the run; after five
+seconds without terminating it is forcibly killed. The launcher does not use
+`--test-ticks`, which would exit successfully without requiring test completion.
+
 CI runs each suite as a job. Add new suite names to `.github/workflows/ci.yml` and the
 VS Code task picker; additional configurations require no CI changes.
-
-The launcher still uses the existing save/benchmark mechanism. Adoption of Factorio's
-new scenario test mode is a separate change.
