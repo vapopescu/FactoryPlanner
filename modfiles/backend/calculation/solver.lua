@@ -561,7 +561,8 @@ local function update_item_allocations(floor, category)
     local function flow_item(line_object, item)
         local name = (line_object.class == "Floor") and item.proto.name
             or line_object.recipe--[[@cast -nil]]:get_name_with_temperature(item.proto)
-        return {type=item.proto.type, name=name, amount=item.amount}
+        local quality = item.quality_proto and item.quality_proto.name
+        return {type=item.proto.type, name=name, quality=quality, amount=item.amount}  ---@type SolverItem
     end
 
     local total_flow = lib.flib.shallow_copy(target_flow)
