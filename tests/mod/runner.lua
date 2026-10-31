@@ -46,7 +46,7 @@ local function run()
         table.insert(lines, "  ✗ no test cases selected" .. configuration.suffix)
     end
 
-    -- run.sh lifts everything between these markers out of the game log for display
+    -- run.py lifts everything between these markers out of the game log for display
     log("FPTEST_REPORT\n" .. table.concat(lines, "\n") .. "\nFPTEST_REPORT_END")
     log(string.format("FPTEST_PASSED %d", #names - error_count))
     script.finish_test(#names > 0 and error_count == 0)

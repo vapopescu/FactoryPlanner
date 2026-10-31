@@ -7,10 +7,14 @@ jobs:
       || github.event.pull_request.head.repo.full_name != github.repository
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+          check-latest: true
       - name: Update Factorio
         run: bash tests/update-factorio.sh
       - name: Run save-create
-        run: bash tests/run.sh save-create
+        run: python tests/run.py save-create
 
   suite:
     runs-on: self-hosted
@@ -23,7 +27,11 @@ jobs:
         suite: [lib, data, generator, solver, gui]
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+          check-latest: true
       - name: Update Factorio
         run: bash tests/update-factorio.sh
       - name: Run ${{ matrix.suite }}
-        run: bash tests/run.sh suite ${{ matrix.suite }}
+        run: python tests/run.py suite ${{ matrix.suite }}
